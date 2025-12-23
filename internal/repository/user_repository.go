@@ -33,8 +33,8 @@ func (r *userRepository) GetUserDetailByProfileID(profileID uint) (*models.UserD
 			   uu.email, uu.id as user_id,
 			   ur."name", ur.id as role_id, ur."type" as role_type
 		from profiles p
-		inner join profiles_user_lnk pul on p.id = pul.profile_id
-		inner join up_users uu on uu.id = pul.profile_id
+		inner join up_users_profile_lnk pul on p.id = pul.profile_id
+		inner join up_users uu on uu.id = pul.user_id 
 		inner join up_users_role_lnk uurl on uurl.user_id = uu.id
 		inner join up_roles ur on ur.id = uurl.role_id
 		where uu.id = ?
@@ -61,7 +61,7 @@ func (r *userRepository) GetUsersWithPenghuniRole() ([]*models.UserDetail, error
 		from up_users uu
 		inner join up_users_role_lnk uurl on uurl.user_id = uu.id
 		inner join up_roles ur on ur.id = uurl.role_id
-		left join profiles_user_lnk pul on pul.user_id = uu.id
+		left join up_users_profile_lnk pul on pul.user_id = uu.id
 		left join profiles p on p.id = pul.profile_id 
 		where ur."type" = 'penghuni' AND p.published_at IS NOT NULL
 		order by uu.id

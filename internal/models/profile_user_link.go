@@ -9,5 +9,5 @@ type ProfileUserLink struct {
 
 // TableName sets the insert table name for ProfileUserLink
 func (ProfileUserLink) TableName() string {
-	return "profiles_user_lnk"
+	return "up_users_profile_lnk"
 }
