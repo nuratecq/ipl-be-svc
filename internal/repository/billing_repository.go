@@ -108,7 +108,7 @@ func (r *billingRepository) GetBillingPenghuni() ([]*models.BillingPenghuniRespo
 		FROM up_users u
 		INNER JOIN up_users_role_lnk url ON u.id = url.user_id
 		INNER JOIN up_roles r ON url.role_id = r.id
-		INNER JOIN profiles_user_lnk pul ON u.id = pul.user_id
+		INNER JOIN up_users_profile_lnk pul ON u.id = pul.user_id
 		INNER JOIN profiles p ON pul.profile_id = p.id
 		LEFT JOIN billings_profile_id_lnk bpl ON u.id = bpl.user_id
 		LEFT JOIN billings b ON bpl.t_billing_id = b.id

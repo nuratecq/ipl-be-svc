@@ -231,7 +231,7 @@ func (s *billingService) getUserWithProfile(userID uint) (*models.User, error) {
 	// Check if user has profile via join
 	var count int64
 	err = s.db.Table("profiles").
-		Joins("JOIN profiles_user_lnk pul ON profiles.id = pul.profile_id").
+		Joins("JOIN up_users_profile_lnk pul ON profiles.id = pul.profile_id").
 		Where("pul.user_id = ?", userID).
 		Count(&count).Error
 	if err != nil {
