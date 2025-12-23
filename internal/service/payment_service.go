@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"ipl-be-svc/internal/repository"
@@ -226,8 +227,11 @@ func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentL
 	// Create combined description
 	description := fmt.Sprintf("Payment for multiple billings: %v", descriptions)
 
+	fmt.Println("totalAmount : ", totalAmount)
+	fmt.Println("Desc : ", strings.Join(descriptions, ", "))
+
 	// Create DOKU payment link
-	paymentURL, err := s.dokuService.CreatePaymentLink(totalAmount, description)
+	paymentURL, err := s.dokuService.CreatePaymentLink(totalAmount, strings.Join(descriptions, ", "))
 	if err != nil {
 		s.logger.WithError(err).WithField("billing_ids", billingIDs).Error("Failed to create DOKU payment link")
 		return nil, fmt.Errorf("failed to create payment link: %w", err)
