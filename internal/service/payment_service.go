@@ -310,8 +310,8 @@ func (d *dokuService) InitiateDokuCheckout(clientID, secretKey string, amount in
 			SessionID:     "SU5WFDferd561dfasfasdfae123c",
 			CallbackURL:   "https://doku.com/",
 			LineItems: []DokuLineItem{
-				{Name: description, Price: amount, Quantity: 1},
-				{Name: "Service Fee", Price: 5000, Quantity: 1},
+				{Name: "Biaya IPL", Price: amount, Quantity: 1},
+				{Name: "Biaya Layanan", Price: 5000, Quantity: 1},
 			},
 		},
 		Payment: DokuPayment{PaymentDueDate: 60},
