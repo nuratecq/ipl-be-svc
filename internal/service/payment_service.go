@@ -198,7 +198,7 @@ func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentL
 	}
 
 	var totalAmount int64 = 0
-	var descriptions []string
+	var listBillingIDs []uint
 
 	for _, billingID := range billingIDs {
 		// Get billing record
@@ -217,21 +217,24 @@ func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentL
 		totalAmount += *billing.Nominal
 
 		// Create description part
-		desc := fmt.Sprintf("Billing ID %d", billingID)
-		if billing.Bulan != nil && billing.Tahun != nil {
-			desc = fmt.Sprintf("%d/%d - Billing ID %d", *billing.Bulan, *billing.Tahun, billingID)
-		}
-		descriptions = append(descriptions, desc)
+		listBillingIDs = append(listBillingIDs, billingID)
+
 	}
 
 	// Create combined description
-	description := fmt.Sprintf("Payment for multiple billings: %v", descriptions)
+	description := strings.Join(func() []string {
+		parts := make([]string, len(billingIDs))
+		for i, id := range billingIDs {
+			parts[i] = fmt.Sprintf("%d", id)
+		}
+		return parts
+	}(), ",")
 
 	fmt.Println("totalAmount : ", totalAmount)
-	fmt.Println("Desc : ", strings.Join(descriptions, ", "))
+	fmt.Println("Desc : ", description)
 
 	// Create DOKU payment link
-	paymentURL, err := s.dokuService.CreatePaymentLink(totalAmount, strings.Join(descriptions, ", "))
+	paymentURL, err := s.dokuService.CreatePaymentLink(totalAmount, description)
 	if err != nil {
 		s.logger.WithError(err).WithField("billing_ids", billingIDs).Error("Failed to create DOKU payment link")
 		return nil, fmt.Errorf("failed to create payment link: %w", err)
@@ -305,7 +308,7 @@ func (d *dokuService) InitiateDokuCheckout(clientID, secretKey string, amount in
 	payload := DokuCheckoutRequest{
 		Order: DokuOrder{
 			Amount:        amount + 5000, // Tambah service fee
-			InvoiceNumber: fmt.Sprintf("INV-%d", time.Now().Unix()),
+			InvoiceNumber: fmt.Sprintf("INV-%d-%s", time.Now().Unix(), description),
 			Currency:      "IDR",
 			SessionID:     "SU5WFDferd561dfasfasdfae123c",
 			CallbackURL:   "https://doku.com/",

@@ -19,7 +19,7 @@ type PaymentHandler struct {
 
 // CreatePaymentLinkMultipleRequest represents the request body for creating payment link for multiple billings
 type CreatePaymentLinkMultipleRequest struct {
-	BillingIDs []uint `json:"billing_ids" binding:"required" example:"[6,2]"` // Array of billing IDs to create payment link for
+	BillingIDs []uint `json:"billing_ids" binding:"required" example:"6,2"` // Array of billing IDs to create payment link for
 }
 
 // NewPaymentHandler creates a new PaymentHandler instance

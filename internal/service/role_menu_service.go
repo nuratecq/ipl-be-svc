@@ -26,8 +26,8 @@ type CreateRoleMenuRequest struct {
 	DocumentID  *string  `json:"document_id" example:"role_menu001"`
 	RoleMenuOrd *float64 `json:"role_menu_ord" example:"1.0"`
 	IsActive    *bool    `json:"is_active" example:"true"`
-	MasterMenus []uint   `json:"master_menu_ids,omitempty" example:"[1,2,3]"`
-	Roles       []uint   `json:"role_ids,omitempty" example:"[1,2]"`
+	MasterMenus []uint   `json:"master_menu_ids,omitempty" example:"1,2,3"`
+	Roles       []uint   `json:"role_ids,omitempty" example:"1,2"`
 }
 
 // UpdateRoleMenuRequest represents the request to update a role menu

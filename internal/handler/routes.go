@@ -61,6 +61,10 @@ func SetupRoutes(
 		billings := v1.Group("/billings")
 		{
 			billings.POST("/bulk-monthly", bulkBillingHandler.CreateBulkMonthlyBillings)
+			billings.POST("/bulk-custom", bulkBillingHandler.CreateBulkCustomBillings)
+			// Payment confirmation webhook endpoint
+			billings.POST("/confirm-payment", bulkBillingHandler.ConfirmPaymentWebhook)
+			// Admin endpoint to confirm payments by billing IDs
 			billings.GET("/penghuni", bulkBillingHandler.GetBillingPenghuni)
 		}
 

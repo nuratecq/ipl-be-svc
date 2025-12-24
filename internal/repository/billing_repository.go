@@ -9,6 +9,7 @@ import (
 // BillingRepository defines the interface for billing data operations
 type BillingRepository interface {
 	GetBillingByID(id uint) (*models.Billing, error)
+	GetBillingSettingsByID(id uint) (*models.SettingBilling, error)
 	GetUsersWithPenghuniRole() ([]*models.User, error)
 	GetActiveMonthlySettingBillings() ([]*models.SettingBilling, error)
 	CreateBulkBillings(billings []*models.Billing) error
@@ -38,6 +39,18 @@ func (r *billingRepository) GetBillingByID(id uint) (*models.Billing, error) {
 	}
 
 	return &billing, nil
+}
+
+// GetBillingSettingsByID retrieves a billing setting record by ID
+func (r *billingRepository) GetBillingSettingsByID(id uint) (*models.SettingBilling, error) {
+	var setting models.SettingBilling
+
+	err := r.db.Where("id = ?", id).First(&setting).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &setting, nil
 }
 
 // GetUsersWithPenghuniRole retrieves all users with role type "penghuni"
