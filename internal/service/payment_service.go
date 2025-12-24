@@ -304,19 +304,20 @@ func (d *dokuService) InitiateDokuCheckout(clientID, secretKey string, amount in
 	// --- Payload body ---
 	payload := DokuCheckoutRequest{
 		Order: DokuOrder{
-			Amount:        amount,
+			Amount:        amount + 5000, // Tambah service fee
 			InvoiceNumber: fmt.Sprintf("INV-%d", time.Now().Unix()),
 			Currency:      "IDR",
 			SessionID:     "SU5WFDferd561dfasfasdfae123c",
 			CallbackURL:   "https://doku.com/",
 			LineItems: []DokuLineItem{
 				{Name: description, Price: amount, Quantity: 1},
+				{Name: "Service Fee", Price: 5000, Quantity: 1},
 			},
 		},
 		Payment: DokuPayment{PaymentDueDate: 60},
 		Customer: DokuCustomer{
-			Name:    "Anton Budiman",
-			Email:   "anton@doku.com",
+			Name:    "",
+			Email:   "",
 			Phone:   "+6285694566147",
 			Address: "Plaza Asia Office Park Unit 3",
 			Country: "ID",
@@ -397,6 +398,7 @@ func (d *dokuService) InitiateDokuCheckout(clientID, secretKey string, amount in
 
 // CreatePaymentLink creates a payment link using DOKU service
 func (d *dokuService) CreatePaymentLink(amount int64, description string) (string, error) {
+
 	d.logger.WithFields(map[string]interface{}{
 		"amount":      amount,
 		"description": description,
