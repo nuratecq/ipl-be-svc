@@ -2,9 +2,11 @@ package handler
 
 import (
 	"fmt"
+	"io"
 	"ipl-be-svc/internal/service"
 	"ipl-be-svc/pkg/logger"
 	"ipl-be-svc/pkg/utils"
+	"os"
 	"strconv"
 	"strings"
 
@@ -268,4 +270,167 @@ func (h *BulkBillingHandler) ConfirmPaymentWebhook(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, "Webhook received", nil)
+}
+
+// ConfirmPaymentRequest is request body for confirming a single billing
+type ConfirmPaymentRequest struct {
+	BillingID uint `json:"billing_id" binding:"required" example:"123"`
+}
+
+// ConfirmPaymentSingle confirms payment for a single billing ID
+// @Summary Confirm single billing payment
+// @Description Confirm payment by sending a single billing_id in JSON body
+// @Tags billings
+// @Accept json
+// @Produce json
+// @Param request body ConfirmPaymentRequest true "Billing ID"
+// @Success 200 {object} utils.APIResponse "Payment confirmed"
+// @Failure 400 {object} utils.APIResponse "Invalid payload"
+// @Failure 500 {object} utils.APIResponse "Internal server error"
+// @Router /api/v1/billings/confirm-single [post]
+func (h *BulkBillingHandler) ConfirmPaymentSingle(c *gin.Context) {
+	var req ConfirmPaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.WithError(err).Error("Invalid confirm payload")
+		utils.BadRequestResponse(c, "Invalid payload", err)
+		return
+	}
+
+	if err := h.billingService.ConfirmPayment([]uint{req.BillingID}); err != nil {
+		h.logger.WithError(err).Error("Failed to confirm payment")
+		utils.InternalServerErrorResponse(c, "Failed to confirm payment", err)
+		return
+	}
+
+	utils.SuccessResponse(c, "Payment confirmed", nil)
+}
+
+// UploadBillingAttachment handles multipart file upload for a billing record
+// @Summary Upload billing attachment
+// @Description Upload a file for a billing (multipart form, field `file`)
+// @Tags billings
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path int true "Billing ID"
+// @Param file formData file true "File to upload"
+// @Success 200 {object} utils.APIResponse "File uploaded"
+// @Failure 400 {object} utils.APIResponse "Invalid request"
+// @Failure 500 {object} utils.APIResponse "Internal server error"
+// @Router /api/v1/billings/{id}/attachments [post]
+func (h *BulkBillingHandler) UploadBillingAttachment(c *gin.Context) {
+	idParam := c.Param("id")
+	var billingID uint64
+	_, err := fmt.Sscanf(idParam, "%d", &billingID)
+	if err != nil {
+		h.logger.WithError(err).Error("Invalid billing ID param")
+		utils.BadRequestResponse(c, "Invalid billing ID", err)
+		return
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to get file from form")
+		utils.BadRequestResponse(c, "File is required", err)
+		return
+	}
+
+	opened, err := file.Open()
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to open uploaded file")
+		utils.InternalServerErrorResponse(c, "Failed to read file", err)
+		return
+	}
+	defer opened.Close()
+
+	content, err := io.ReadAll(opened)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to read file content")
+		utils.InternalServerErrorResponse(c, "Failed to read file", err)
+		return
+	}
+
+	att, err := h.billingService.UploadBillingAttachment(uint(billingID), file.Filename, content)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to upload billing attachment")
+		utils.InternalServerErrorResponse(c, "Failed to upload file", err)
+		return
+	}
+
+	utils.SuccessResponse(c, "File uploaded", att)
+}
+
+// ListBillingAttachments lists attachments for a billing
+// @Summary List billing attachments
+// @Description List uploaded attachments for a billing
+// @Tags billings
+// @Accept json
+// @Produce json
+// @Param id path int true "Billing ID"
+// @Success 200 {object} utils.APIResponse "List of attachments"
+// @Failure 500 {object} utils.APIResponse "Internal server error"
+// @Router /api/v1/billings/{id}/attachments [get]
+func (h *BulkBillingHandler) ListBillingAttachments(c *gin.Context) {
+	idParam := c.Param("id")
+	var billingID uint64
+	_, err := fmt.Sscanf(idParam, "%d", &billingID)
+	if err != nil {
+		h.logger.WithError(err).Error("Invalid billing ID param")
+		utils.BadRequestResponse(c, "Invalid billing ID", err)
+		return
+	}
+
+	atts, err := h.billingService.GetBillingAttachments(uint(billingID))
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to list attachments")
+		utils.InternalServerErrorResponse(c, "Failed to list attachments", err)
+		return
+	}
+
+	utils.SuccessResponse(c, "Attachments retrieved", atts)
+}
+
+// DownloadBillingAttachment streams the file for a given attachment id
+// @Summary Download billing attachment
+// @Description Download attachment by id
+// @Tags billings
+// @Accept json
+// @Produce octet-stream
+// @Param id path int true "Billing ID"
+// @Param attachment_id path int true "Attachment ID"
+// @Success 200 {file} file "The file"
+// @Failure 404 {object} utils.APIResponse "Not found"
+// @Failure 500 {object} utils.APIResponse "Internal server error"
+// @Router /api/v1/billings/{id}/attachments/{attachment_id} [get]
+func (h *BulkBillingHandler) DownloadBillingAttachment(c *gin.Context) {
+	idParam := c.Param("id")
+	var billingID uint64
+	_, err := fmt.Sscanf(idParam, "%d", &billingID)
+	if err != nil {
+		h.logger.WithError(err).Error("Invalid billing ID param")
+		utils.BadRequestResponse(c, "Invalid billing ID", err)
+		return
+	}
+
+	// Here attachment_id is the stored filename (URL-encoded). We will serve that file from disk.
+	attachmentName := c.Param("attachment_id")
+	dir := fmt.Sprintf("tmp/uploads/billings/%d", billingID)
+	path := fmt.Sprintf("%s/%s", dir, attachmentName)
+
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			utils.NotFoundResponse(c, "Attachment not found")
+			return
+		}
+		h.logger.WithError(err).Error("Failed to stat attachment file")
+		utils.InternalServerErrorResponse(c, "Failed to open attachment", err)
+		return
+	}
+
+	// try to infer original filename (after underscore)
+	orig := attachmentName
+	if parts := strings.SplitN(attachmentName, "_", 2); len(parts) == 2 {
+		orig = parts[1]
+	}
+
+	c.FileAttachment(path, orig)
 }

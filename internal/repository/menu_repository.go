@@ -24,7 +24,7 @@ func NewMenuRepository(db *gorm.DB) MenuRepository {
 // GetMenusByUserID gets distinct menus by user ID using the provided SQL query
 func (r *menuRepository) GetMenusByUserID(userID uint) ([]*models.MasterMenu, error) {
 	var menus []*models.MasterMenu
-	
+
 	query := `
 		SELECT DISTINCT ON (mm.document_id) mm.*
 		FROM up_users_role_lnk uurl
@@ -34,7 +34,7 @@ func (r *menuRepository) GetMenusByUserID(userID uint) ([]*models.MasterMenu, er
 		WHERE uurl.user_id = ?
 		ORDER BY mm.document_id, mm.id
 	`
-	
+
 	err := r.db.Raw(query, userID).Scan(&menus).Error
 	return menus, err
 }

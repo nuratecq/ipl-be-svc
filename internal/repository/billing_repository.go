@@ -18,6 +18,7 @@ type BillingRepository interface {
 	CreateBulkBillingProfileLinks(links []*models.BillingProfileLink) error
 	GetBillingPenghuni(search string, page int, limit int) ([]*models.BillingPenghuniResponse, int64, error)
 	GetBillingPenghuniAll() ([]*models.BillingPenghuniResponse, error)
+	// Note: attachment file operations are handled on disk (not persisted to DB)
 }
 
 // billingRepository implements BillingRepository
@@ -94,6 +95,8 @@ func (r *billingRepository) CreateBulkBillings(billings []*models.Billing) error
 func (r *billingRepository) CreateBulkBillingProfileLinks(links []*models.BillingProfileLink) error {
 	return r.db.CreateInBatches(links, 100).Error
 }
+
+// (no DB-backed attachment methods; file attachments are stored on disk)
 
 // (removed old GetBillingPenghuni - use the paginated version with search)
 
