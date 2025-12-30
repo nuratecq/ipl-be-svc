@@ -113,6 +113,7 @@ func (r *billingRepository) GetBillingPenghuni(search string, page int, limit in
 	// Base query (same as previous implementation)
 	baseQuery := `
 		SELECT 
+			string_agg(DISTINCT b.id::text, ',') as billings_ids,
 			u.document_id,
 			u.email,
 			u.id,
@@ -163,11 +164,34 @@ func (r *billingRepository) GetBillingPenghuni(search string, page int, limit in
 		LIMIT ? OFFSET ?
 	`
 
-	// Count total (wrap grouped query)
-	countQuery := "SELECT COUNT(*) FROM (" + baseQuery + ` GROUP BY u.document_id, u.email, u.id, p.nama_penghuni, p.no_hp, p.no_telp, r.id, r.name, r.type, u.username, b.bulan, b.tahun) as sub`
+	// Count total distinct groups (user + month + year) using a lightweight subquery
+	countBase := `
+		SELECT CONCAT(u.id, '-', COALESCE(b.bulan::text, ''), '-', COALESCE(b.tahun::text, '')) as grp
+		FROM up_users u
+		INNER JOIN up_users_role_lnk url ON u.id = url.user_id
+		INNER JOIN up_roles r ON url.role_id = r.id
+		INNER JOIN up_users_profile_lnk pul ON u.id = pul.user_id
+		INNER JOIN profiles p ON pul.profile_id = p.id
+		LEFT JOIN billings_profile_id_lnk bpl ON u.id = bpl.user_id
+		LEFT JOIN billings b ON bpl.t_billing_id = b.id
+		LEFT JOIN billings_status_bill_lnk bsbl ON b.id = bsbl.t_billing_id
+		LEFT JOIN master_general_statuses mgs ON bsbl.master_general_status_id = mgs.id
+		WHERE r.type = 'penghuni'
+		AND b.published_at IS NOT NULL
+		AND p.published_at IS NOT NULL
+	`
+
+	if strings.TrimSpace(search) != "" {
+		if _, err := strconv.Atoi(search); err == nil {
+			countBase += " AND (u.id = ? OR p.nama_penghuni ILIKE ?)"
+		} else {
+			countBase += " AND p.nama_penghuni ILIKE ?"
+		}
+	}
+
+	countQuery := "SELECT COUNT(*) FROM (" + countBase + ` GROUP BY u.id, b.bulan, b.tahun) as sub`
 
 	var total int64
-	// run count
 	countArgs := append([]interface{}{}, args...)
 	if err := r.db.Raw(countQuery, countArgs...).Row().Scan(&total); err != nil {
 		return nil, 0, err
@@ -191,9 +215,11 @@ func (r *billingRepository) GetBillingPenghuni(search string, page int, limit in
 
 	for rows.Next() {
 		var result models.BillingPenghuniResponse
+		var billingsIDsStr *string
 		var bulan int
 
 		err := rows.Scan(
+			&result.BillingID,
 			&result.DocumentID,
 			&result.Email,
 			&result.ID,
@@ -217,6 +243,21 @@ func (r *billingRepository) GetBillingPenghuni(search string, page int, limit in
 			result.Bulan = monthName
 		} else {
 			result.Bulan = ""
+		}
+
+		// parse billings_ids string into slice of uint
+		result.BillingIDs = []uint{}
+		if billingsIDsStr != nil && *billingsIDsStr != "" {
+			parts := strings.Split(*billingsIDsStr, ",")
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p == "" {
+					continue
+				}
+				if id64, err := strconv.ParseUint(p, 10, 64); err == nil {
+					result.BillingIDs = append(result.BillingIDs, uint(id64))
+				}
+			}
 		}
 
 		results = append(results, &result)
@@ -278,6 +319,7 @@ func (r *billingRepository) GetBillingPenghuniAll() ([]*models.BillingPenghuniRe
 		var bulan int
 
 		err := rows.Scan(
+			&result.BillingID,
 			&result.DocumentID,
 			&result.Email,
 			&result.ID,
@@ -303,6 +345,7 @@ func (r *billingRepository) GetBillingPenghuniAll() ([]*models.BillingPenghuniRe
 			result.Bulan = ""
 		}
 
+		// billing ids not currently selected for all-list; if need, user can use /penghuni/search
 		results = append(results, &result)
 	}
 
