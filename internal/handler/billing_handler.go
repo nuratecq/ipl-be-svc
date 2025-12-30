@@ -5,6 +5,7 @@ import (
 	"ipl-be-svc/internal/service"
 	"ipl-be-svc/pkg/logger"
 	"ipl-be-svc/pkg/utils"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -133,9 +134,50 @@ func (h *BulkBillingHandler) CreateBulkCustomBillings(c *gin.Context) {
 	utils.SuccessResponse(c, "Bulk custom billings created successfully", response)
 }
 
-// GetBillingPenghuni retrieves all billing data for penghuni users
+// GetBillingPenghuniSearch retrieves billing data for penghuni users with pagination and search
 // @Summary Get billing penghuni list with summed nominals
-// @Description Get all billing data for penghuni users with complete information including profile, role, and billing status. Nominal amounts are summed per user per billing period (month/year).
+// @Description Get billing data for penghuni users. Supports pagination and search by `q` (nama_penghuni or user ID).
+// @Tags billings
+// @Accept json
+// @Produce json
+// @Param q query string false "Search by nama_penghuni or ID"
+// @Param page query int false "Page number" default(1)
+// @Param per_page query int false "Items per page" default(20)
+// @Success 200 {object} utils.PaginatedResponse{data=[]models.BillingPenghuniResponse} "Billing penghuni retrieved successfully"
+// @Failure 500 {object} utils.APIResponse "Internal server error"
+// @Router /api/v1/billings/penghuni/search [get]
+func (h *BulkBillingHandler) GetBillingPenghuniSearch(c *gin.Context) {
+	// read query params
+	q := c.Query("q")
+	page := 1
+	perPage := 20
+
+	if p := c.Query("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			page = v
+		}
+	}
+	if pp := c.Query("per_page"); pp != "" {
+		if v, err := strconv.Atoi(pp); err == nil && v > 0 {
+			perPage = v
+		}
+	}
+
+	results, total, err := h.billingService.GetBillingPenghuni(q, page, perPage)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to get billing penghuni")
+		utils.InternalServerErrorResponse(c, "Failed to get billing penghuni", err)
+		return
+	}
+
+	h.logger.WithFields(map[string]interface{}{"count": len(results), "total": total, "page": page, "per_page": perPage}).Info("Billing penghuni retrieved successfully")
+
+	utils.PaginatedSuccessResponse(c, "Billing penghuni retrieved successfully", results, page, perPage, total)
+}
+
+// GetBillingPenghuni retrieves all billing data for penghuni users (no params)
+// @Summary Get all billing penghuni
+// @Description Retrieve all billing penghuni records without pagination or search
 // @Tags billings
 // @Accept json
 // @Produce json
@@ -143,7 +185,7 @@ func (h *BulkBillingHandler) CreateBulkCustomBillings(c *gin.Context) {
 // @Failure 500 {object} utils.APIResponse "Internal server error"
 // @Router /api/v1/billings/penghuni [get]
 func (h *BulkBillingHandler) GetBillingPenghuni(c *gin.Context) {
-	results, err := h.billingService.GetBillingPenghuni()
+	results, err := h.billingService.GetBillingPenghuniAll()
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get billing penghuni")
 		utils.InternalServerErrorResponse(c, "Failed to get billing penghuni", err)

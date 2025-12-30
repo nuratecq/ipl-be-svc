@@ -66,6 +66,8 @@ func SetupRoutes(
 			billings.POST("/confirm-payment", bulkBillingHandler.ConfirmPaymentWebhook)
 			// Admin endpoint to confirm payments by billing IDs
 			billings.GET("/penghuni", bulkBillingHandler.GetBillingPenghuni)
+			// Paginated/search endpoint
+			billings.GET("/penghuni/search", bulkBillingHandler.GetBillingPenghuniSearch)
 		}
 
 		// Master Menu routes

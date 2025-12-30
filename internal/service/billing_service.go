@@ -17,8 +17,9 @@ type BillingService interface {
 	CreateBulkCustomBillings(userIDs []uint, billingSettingsId int, month int, year int) (*BulkBillingResponse, error)
 	CreateBulkMonthlyBillingsForAllUsers(month int, year int) (*BulkBillingResponse, error)
 	CreateBulkCustomBillingsForAllUsers(month int, billingSettingsId int, year int) (*BulkBillingResponse, error)
-	GetBillingPenghuni() ([]*models.BillingPenghuniResponse, error)
+	GetBillingPenghuni(search string, page int, limit int) ([]*models.BillingPenghuniResponse, int64, error)
 	ConfirmPayment(listIds []uint) error
+	GetBillingPenghuniAll() ([]*models.BillingPenghuniResponse, error)
 }
 
 // BulkBillingResponse represents the response for bulk billing creation
@@ -422,8 +423,12 @@ func (s *billingService) getUserWithProfile(userID uint) (*models.User, error) {
 }
 
 // GetBillingPenghuni retrieves all billing data for penghuni users
-func (s *billingService) GetBillingPenghuni() ([]*models.BillingPenghuniResponse, error) {
-	return s.billingRepo.GetBillingPenghuni()
+func (s *billingService) GetBillingPenghuni(search string, page int, limit int) ([]*models.BillingPenghuniResponse, int64, error) {
+	return s.billingRepo.GetBillingPenghuni(search, page, limit)
+}
+
+func (s *billingService) GetBillingPenghuniAll() ([]*models.BillingPenghuniResponse, error) {
+	return s.billingRepo.GetBillingPenghuniAll()
 }
 
 func (s *billingService) ConfirmPayment(listIds []uint) error {

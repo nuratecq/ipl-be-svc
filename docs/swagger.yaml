@@ -1,5 +1,30 @@
 basePath: /api/v1
 definitions:
+  handler.BulkBillingCustomRequest:
+    properties:
+      billing_settings_id:
+        description: Billing settings ID
+        type: integer
+      month:
+        description: Month 1-12
+        maximum: 12
+        minimum: 1
+        type: integer
+      user_ids:
+        description: Empty means all penghuni users
+        items:
+          type: integer
+        type: array
+      year:
+        description: Reasonable year range
+        maximum: 2100
+        minimum: 2020
+        type: integer
+    required:
+    - billing_settings_id
+    - month
+    - year
+    type: object
   handler.BulkBillingRequest:
     properties:
       month:
@@ -21,7 +46,45 @@ definitions:
     - month
     - year
     type: object
+  handler.ConfirmPaymentWebhookRequest:
+    properties:
+      acquirer:
+        additionalProperties: true
+        type: object
+      additional_info:
+        additionalProperties: true
+        type: object
+      channel:
+        additionalProperties: true
+        type: object
+      order:
+        properties:
+          amount:
+            example: 175000
+            type: integer
+          invoice_number:
+            example: INV-1766570879-
+            type: string
+        type: object
+      service:
+        additionalProperties: true
+        type: object
+      transaction:
+        additionalProperties: true
+        type: object
+    type: object
   handler.CreatePaymentLinkMultipleRequest:
+    properties:
+      billing_ids:
+        description: Array of billing IDs to create payment link for
+        example:
+        - 6
+        - 2
+        items:
+          type: integer
+        type: array
+    required:
+    - billing_ids
     type: object
   handler.UserDetailResponse:
     properties:
@@ -312,6 +375,31 @@ definitions:
     - nama_menu
     type: object
   service.CreateRoleMenuRequest:
+    properties:
+      document_id:
+        example: role_menu001
+        type: string
+      is_active:
+        example: true
+        type: boolean
+      master_menu_ids:
+        example:
+        - 1
+        - 2
+        - 3
+        items:
+          type: integer
+        type: array
+      role_ids:
+        example:
+        - 1
+        - 2
+        items:
+          type: integer
+        type: array
+      role_menu_ord:
+        example: 1
+        type: number
     type: object
   service.PaymentLinkResponse:
     properties:
@@ -411,6 +499,46 @@ info:
   title: IPL Backend Service API
   version: "1.0"
 paths:
+  /api/v1/billings/bulk-custom:
+    post:
+      consumes:
+      - application/json
+      description: Create custom billings for specified user IDs or all penghuni users
+        if user_ids is empty. Requires auth-token cookie.
+      parameters:
+      - description: Bulk billing request with month and year
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.BulkBillingCustomRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Bulk billing creation result
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.BulkBillingResponse'
+              type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Create bulk custom billings
+      tags:
+      - billings
   /api/v1/billings/bulk-monthly:
     post:
       consumes:
@@ -451,13 +579,37 @@ paths:
       summary: Create bulk monthly billings
       tags:
       - billings
+  /api/v1/billings/confirm-payment:
+    post:
+      consumes:
+      - application/json
+      description: Receive payment gateway webhook and process payment confirmation
+      parameters:
+      - description: Webhook payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ConfirmPaymentWebhookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Webhook received
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "400":
+          description: Invalid payload
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Confirm payment webhook
+      tags:
+      - billings
   /api/v1/billings/penghuni:
     get:
       consumes:
       - application/json
-      description: Get all billing data for penghuni users with complete information
-        including profile, role, and billing status. Nominal amounts are summed per
-        user per billing period (month/year).
+      description: Retrieve all billing penghuni records without pagination or search
       produces:
       - application/json
       responses:
@@ -466,6 +618,48 @@ paths:
           schema:
             allOf:
             - $ref: '#/definitions/utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.BillingPenghuniResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Get all billing penghuni
+      tags:
+      - billings
+  /api/v1/billings/penghuni/search:
+    get:
+      consumes:
+      - application/json
+      description: Get billing data for penghuni users. Supports pagination and search
+        by `q` (nama_penghuni or user ID).
+      parameters:
+      - description: Search by nama_penghuni or ID
+        in: query
+        name: q
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Billing penghuni retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.PaginatedResponse'
             - properties:
                 data:
                   items:
