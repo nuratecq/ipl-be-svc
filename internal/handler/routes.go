@@ -18,6 +18,7 @@ func SetupRoutes(
 	billingService service.BillingService,
 	masterMenuService service.MasterMenuService,
 	roleMenuService service.RoleMenuService,
+	dashboardService service.DashboardService,
 	logger *logger.Logger,
 ) {
 	// Initialize handlers
@@ -27,6 +28,7 @@ func SetupRoutes(
 	bulkBillingHandler := NewBulkBillingHandler(billingService, logger)
 	masterMenuHandler := NewMasterMenuHandler(masterMenuService, logger)
 	roleMenuHandler := NewRoleMenuHandler(roleMenuService, logger)
+	dashboardHandler := NewDashboardHandler(dashboardService, logger)
 
 	// Swagger documentation
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -108,6 +110,13 @@ func SetupRoutes(
 		roles := v1.Group("/roles")
 		{
 			roles.GET("/:role_id/role-menus", roleMenuHandler.GetRoleMenusByRoleID)
+		}
+
+		// Dashboard routes
+		dashboard := v1.Group("/dashboard")
+		{
+			dashboard.GET("/statistics", dashboardHandler.GetDashboardStatistics)
+			dashboard.GET("/billings", dashboardHandler.GetBillingList)
 		}
 	}
 }

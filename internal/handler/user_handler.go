@@ -29,6 +29,9 @@ func NewUserHandler(userService service.UserService, logger *logger.Logger) *Use
 type UserDetailResponse struct {
 	ID           uint   `json:"id" example:"1"`
 	NamaPenghuni string `json:"nama_penghuni" example:"John Doe"`
+	NamaPemilik  string `json:"nama_pemilik" example:"Jane Doe"`
+	Blok         string `json:"blok" example:"A1"`
+	Rt           int    `json:"rt" example:"5"`
 	NoHP         string `json:"no_hp" example:"+6281234567890"`
 	NoTelp       string `json:"no_telp" example:"021-12345678"`
 	DocumentID   string `json:"document_id" example:"abc123def456"`
@@ -80,6 +83,9 @@ func (h *UserHandler) GetUserDetailByProfileID(c *gin.Context) {
 	response := UserDetailResponse{
 		ID:           userDetail.ID,
 		NamaPenghuni: userDetail.NamaPenghuni,
+		NamaPemilik:  userDetail.NamaPemilik,
+		Blok:         userDetail.Blok,
+		Rt:           userDetail.Rt,
 		NoHP:         userDetail.NoHP,
 		NoTelp:       userDetail.NoTelp,
 		DocumentID:   userDetail.DocumentID,
@@ -125,6 +131,9 @@ func (h *UserHandler) GetPenghuniUsers(c *gin.Context) {
 			Username:     user.Username,
 			Email:        user.Email,
 			NamaPenghuni: user.NamaPenghuni,
+			NamaPemilik:  user.NamaPemilik,
+			Blok:         user.Blok,
+			Rt:           user.Rt,
 			NoHP:         user.NoHP,
 			NoTelp:       user.NoTelp,
 			DocumentID:   user.DocumentID,

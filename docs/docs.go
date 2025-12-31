@@ -486,6 +486,129 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/dashboard/billings": {
+            "get": {
+                "description": "Get list of billings with optional RT, bulan, tahun filters and pagination",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Get billing list with pagination",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "RT (Rukun Tetangga) number - optional, if not provided will return all",
+                        "name": "rt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Month (1-12) - optional",
+                        "name": "bulan",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Year - optional",
+                        "name": "tahun",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 10, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved billing list",
+                        "schema": {
+                            "$ref": "#/definitions/utils.PaginatedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid parameters",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/dashboard/statistics": {
+            "get": {
+                "description": "Get billing statistics (unpaid and total) for a specific RT with optional month and year filters",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Get dashboard statistics by RT",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "RT (Rukun Tetangga) number",
+                        "name": "rt",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Month (1-12)",
+                        "name": "bulan",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Year",
+                        "name": "tahun",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved dashboard statistics",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid RT parameter",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/master-menus": {
             "get": {
                 "description": "Get all master menus with pagination",
@@ -1769,6 +1892,10 @@ const docTemplate = `{
         "handler.UserDetailResponse": {
             "type": "object",
             "properties": {
+                "blok": {
+                    "type": "string",
+                    "example": "A1"
+                },
                 "document_id": {
                     "type": "string",
                     "example": "abc123def456"
@@ -1780,6 +1907,10 @@ const docTemplate = `{
                 "id": {
                     "type": "integer",
                     "example": 1
+                },
+                "nama_pemilik": {
+                    "type": "string",
+                    "example": "Jane Doe"
                 },
                 "nama_penghuni": {
                     "type": "string",
@@ -1804,6 +1935,10 @@ const docTemplate = `{
                 "role_type": {
                     "type": "string",
                     "example": "admin"
+                },
+                "rt": {
+                    "type": "integer",
+                    "example": 5
                 },
                 "user_id": {
                     "type": "integer",
@@ -2055,6 +2190,10 @@ const docTemplate = `{
         "response.PenghuniUserResponse": {
             "type": "object",
             "properties": {
+                "blok": {
+                    "type": "string",
+                    "example": "A1"
+                },
                 "document_id": {
                     "type": "string",
                     "example": "abc123def456"
@@ -2066,6 +2205,10 @@ const docTemplate = `{
                 "id": {
                     "type": "integer",
                     "example": 1
+                },
+                "nama_pemilik": {
+                    "type": "string",
+                    "example": "Jane Doe"
                 },
                 "nama_penghuni": {
                     "type": "string",
@@ -2090,6 +2233,10 @@ const docTemplate = `{
                 "role_type": {
                     "type": "string",
                     "example": "penghuni"
+                },
+                "rt": {
+                    "type": "integer",
+                    "example": 5
                 },
                 "username": {
                     "type": "string",

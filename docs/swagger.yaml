@@ -96,6 +96,9 @@ definitions:
     type: object
   handler.UserDetailResponse:
     properties:
+      blok:
+        example: A1
+        type: string
       document_id:
         example: abc123def456
         type: string
@@ -105,6 +108,9 @@ definitions:
       id:
         example: 1
         type: integer
+      nama_pemilik:
+        example: Jane Doe
+        type: string
       nama_penghuni:
         example: John Doe
         type: string
@@ -123,6 +129,9 @@ definitions:
       role_type:
         example: admin
         type: string
+      rt:
+        example: 5
+        type: integer
       user_id:
         example: 123
         type: integer
@@ -301,6 +310,9 @@ definitions:
     type: object
   response.PenghuniUserResponse:
     properties:
+      blok:
+        example: A1
+        type: string
       document_id:
         example: abc123def456
         type: string
@@ -310,6 +322,9 @@ definitions:
       id:
         example: 1
         type: integer
+      nama_pemilik:
+        example: Jane Doe
+        type: string
       nama_penghuni:
         example: John Doe
         type: string
@@ -328,6 +343,9 @@ definitions:
       role_type:
         example: penghuni
         type: string
+      rt:
+        example: 5
+        type: integer
       username:
         example: john_doe
         type: string
@@ -814,6 +832,90 @@ paths:
       summary: Get billing penghuni list with summed nominals
       tags:
       - billings
+  /api/v1/dashboard/billings:
+    get:
+      consumes:
+      - application/json
+      description: Get list of billings with optional RT, bulan, tahun filters and
+        pagination
+      parameters:
+      - description: RT (Rukun Tetangga) number - optional, if not provided will return
+          all
+        in: query
+        name: rt
+        type: integer
+      - description: Month (1-12) - optional
+        in: query
+        name: bulan
+        type: integer
+      - description: Year - optional
+        in: query
+        name: tahun
+        type: integer
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 10, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved billing list
+          schema:
+            $ref: '#/definitions/utils.PaginatedResponse'
+        "400":
+          description: Bad request - invalid parameters
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Get billing list with pagination
+      tags:
+      - dashboard
+  /api/v1/dashboard/statistics:
+    get:
+      consumes:
+      - application/json
+      description: Get billing statistics (unpaid and total) for a specific RT with
+        optional month and year filters
+      parameters:
+      - description: RT (Rukun Tetangga) number
+        in: query
+        name: rt
+        required: true
+        type: integer
+      - description: Month (1-12)
+        in: query
+        name: bulan
+        type: integer
+      - description: Year
+        in: query
+        name: tahun
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved dashboard statistics
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "400":
+          description: Bad request - invalid RT parameter
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Get dashboard statistics by RT
+      tags:
+      - dashboard
   /api/v1/master-menus:
     get:
       consumes:
