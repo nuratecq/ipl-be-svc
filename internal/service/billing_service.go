@@ -2,6 +2,8 @@ package service
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"ipl-be-svc/internal/models"
@@ -17,8 +19,13 @@ type BillingService interface {
 	CreateBulkCustomBillings(userIDs []uint, billingSettingsId int, month int, year int) (*BulkBillingResponse, error)
 	CreateBulkMonthlyBillingsForAllUsers(month int, year int) (*BulkBillingResponse, error)
 	CreateBulkCustomBillingsForAllUsers(month int, billingSettingsId int, year int) (*BulkBillingResponse, error)
-	GetBillingPenghuni() ([]*models.BillingPenghuniResponse, error)
+	GetBillingPenghuni(search string, page int, limit int) ([]*models.BillingPenghuniResponse, int64, error)
 	ConfirmPayment(listIds []uint) error
+	GetBillingPenghuniAll() ([]*models.BillingPenghuniResponse, error)
+	// Attachments
+	UploadBillingAttachment(billingID uint, filename string, content []byte) (*models.BillingAttachment, error)
+	GetBillingAttachments(billingID uint) ([]*models.BillingAttachment, error)
+	GetBillingAttachmentByID(id uint) (*models.BillingAttachment, error)
 }
 
 // BulkBillingResponse represents the response for bulk billing creation
@@ -422,8 +429,12 @@ func (s *billingService) getUserWithProfile(userID uint) (*models.User, error) {
 }
 
 // GetBillingPenghuni retrieves all billing data for penghuni users
-func (s *billingService) GetBillingPenghuni() ([]*models.BillingPenghuniResponse, error) {
-	return s.billingRepo.GetBillingPenghuni()
+func (s *billingService) GetBillingPenghuni(search string, page int, limit int) ([]*models.BillingPenghuniResponse, int64, error) {
+	return s.billingRepo.GetBillingPenghuni(search, page, limit)
+}
+
+func (s *billingService) GetBillingPenghuniAll() ([]*models.BillingPenghuniResponse, error) {
+	return s.billingRepo.GetBillingPenghuniAll()
 }
 
 func (s *billingService) ConfirmPayment(listIds []uint) error {
@@ -450,4 +461,84 @@ func (s *billingService) ConfirmPayment(listIds []uint) error {
 	}
 
 	return nil
+}
+
+// UploadBillingAttachment stores the uploaded file on disk and returns metadata (no DB persistence)
+func (s *billingService) UploadBillingAttachment(billingID uint, filename string, content []byte) (*models.BillingAttachment, error) {
+	// ensure billing exists
+	if _, err := s.billingRepo.GetBillingByID(billingID); err != nil {
+		return nil, fmt.Errorf("billing not found: %w", err)
+	}
+
+	// storage dir
+	dir := fmt.Sprintf("tmp/uploads/billings/%d", billingID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create dir: %w", err)
+	}
+
+	// unique filename
+	fname := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filename)
+	path := fmt.Sprintf("%s/%s", dir, fname)
+
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		return nil, fmt.Errorf("failed to write file: %w", err)
+	}
+
+	now := time.Now()
+	att := &models.BillingAttachment{
+		BillingID: billingID,
+		FileName:  filename,
+		FilePath:  path,
+		CreatedAt: &now,
+	}
+
+	// Do NOT persist to DB per request — just return metadata
+	return att, nil
+}
+
+// GetBillingAttachments lists files on disk for a billing
+func (s *billingService) GetBillingAttachments(billingID uint) ([]*models.BillingAttachment, error) {
+	dir := fmt.Sprintf("tmp/uploads/billings/%d", billingID)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		// if dir doesn't exist, return empty slice
+		if os.IsNotExist(err) {
+			return []*models.BillingAttachment{}, nil
+		}
+		return nil, fmt.Errorf("failed to read attachments dir: %w", err)
+	}
+
+	var res []*models.BillingAttachment
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		// original filename is after the first underscore in stored name
+		stored := e.Name()
+		parts := strings.SplitN(stored, "_", 2)
+		orig := stored
+		if len(parts) == 2 {
+			orig = parts[1]
+		}
+		path := fmt.Sprintf("%s/%s", dir, stored)
+		t := info.ModTime()
+		res = append(res, &models.BillingAttachment{
+			BillingID: billingID,
+			FileName:  orig,
+			FilePath:  path,
+			CreatedAt: &t,
+		})
+	}
+
+	return res, nil
+}
+
+// GetBillingAttachmentByFilename returns metadata for a single file by filename (stored name may have timestamp prefix)
+func (s *billingService) GetBillingAttachmentByID(id uint) (*models.BillingAttachment, error) {
+	// The previous signature accepted single numeric id (DB id). Since we don't persist, we can't support numeric lookup.
+	return nil, fmt.Errorf("numeric lookup not supported: attachments are stored on disk without DB ids")
 }

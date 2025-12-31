@@ -192,9 +192,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/billings/penghuni": {
-            "get": {
-                "description": "Get all billing data for penghuni users with complete information including profile, role, and billing status. Nominal amounts are summed per user per billing period (month/year).",
+        "/api/v1/billings/confirm-single": {
+            "post": {
+                "description": "Confirm payment by sending a single billing_id in JSON body",
                 "consumes": [
                     "application/json"
                 ],
@@ -204,7 +204,53 @@ const docTemplate = `{
                 "tags": [
                     "billings"
                 ],
-                "summary": "Get billing penghuni list with summed nominals",
+                "summary": "Confirm single billing payment",
+                "parameters": [
+                    {
+                        "description": "Billing ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ConfirmPaymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Payment confirmed",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid payload",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/billings/penghuni": {
+            "get": {
+                "description": "Retrieve all billing penghuni records without pagination or search",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "Get all billing penghuni",
                 "responses": {
                     "200": {
                         "description": "Billing penghuni retrieved successfully",
@@ -225,6 +271,210 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/billings/penghuni/search": {
+            "get": {
+                "description": "Get billing data for penghuni users. Supports pagination and search by ` + "`" + `q` + "`" + ` (nama_penghuni or user ID).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "Get billing penghuni list with summed nominals",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search by nama_penghuni or ID",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "per_page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Billing penghuni retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.PaginatedResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.BillingPenghuniResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/billings/{id}/attachments": {
+            "get": {
+                "description": "List uploaded attachments for a billing",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "List billing attachments",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Billing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of attachments",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Upload a file for a billing (multipart form, field ` + "`" + `file` + "`" + `)",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "Upload billing attachment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Billing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "File to upload",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "File uploaded",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/billings/{id}/attachments/{attachment_id}": {
+            "get": {
+                "description": "Download attachment by id",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "Download billing attachment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Billing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Attachment ID",
+                        "name": "attachment_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "500": {
@@ -1570,6 +1820,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.ConfirmPaymentRequest": {
+            "type": "object",
+            "required": [
+                "billing_id"
+            ],
+            "properties": {
+                "billing_id": {
+                    "type": "integer",
+                    "example": 123
+                }
+            }
+        },
         "handler.ConfirmPaymentWebhookRequest": {
             "type": "object",
             "properties": {
@@ -1687,6 +1949,21 @@ const docTemplate = `{
         "models.BillingPenghuniResponse": {
             "type": "object",
             "properties": {
+                "billing_id": {
+                    "description": "Billing ID",
+                    "type": "integer",
+                    "example": 10
+                },
+                "billings_id": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        10,
+                        11
+                    ]
+                },
                 "bulan": {
                     "description": "Month name",
                     "type": "string",

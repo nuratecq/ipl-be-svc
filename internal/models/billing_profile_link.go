@@ -2,9 +2,9 @@ package models
 
 // BillingProfileLink represents the billings_profile_id_lnk table
 type BillingProfileLink struct {
-	ID         uint `json:"id" gorm:"primarykey"`
-	BillingID  uint `json:"t_billing_id" gorm:"column:t_billing_id"`
-	ProfileID  uint `json:"user_id" gorm:"column:user_id"` // Note: column name is user_id but should be profile_id
+	ID        uint `json:"id" gorm:"primarykey"`
+	BillingID uint `json:"t_billing_id" gorm:"column:t_billing_id"`
+	ProfileID uint `json:"user_id" gorm:"column:user_id"` // Note: column name is user_id but should be profile_id
 }
 
 // TableName sets the insert table name for BillingProfileLink

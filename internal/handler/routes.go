@@ -66,8 +66,16 @@ func SetupRoutes(
 			billings.POST("/bulk-custom", bulkBillingHandler.CreateBulkCustomBillings)
 			// Payment confirmation webhook endpoint
 			billings.POST("/confirm-payment", bulkBillingHandler.ConfirmPaymentWebhook)
+			// Confirm single billing via JSON body {billing_id}
+			billings.POST("/confirm-single", bulkBillingHandler.ConfirmPaymentSingle)
 			// Admin endpoint to confirm payments by billing IDs
 			billings.GET("/penghuni", bulkBillingHandler.GetBillingPenghuni)
+			// Paginated/search endpoint
+			billings.GET("/penghuni/search", bulkBillingHandler.GetBillingPenghuniSearch)
+			// Billing attachments
+			billings.POST("/:id/attachments", bulkBillingHandler.UploadBillingAttachment)
+			billings.GET("/:id/attachments", bulkBillingHandler.ListBillingAttachments)
+			billings.GET("/:id/attachments/:attachment_id", bulkBillingHandler.DownloadBillingAttachment)
 		}
 
 		// Master Menu routes

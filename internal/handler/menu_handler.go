@@ -83,7 +83,7 @@ func (h *MenuHandler) GetMenusByUserID(c *gin.Context) {
 	}
 
 	h.logger.WithFields(map[string]interface{}{
-		"user_id":     userID,
+		"user_id":    userID,
 		"menu_count": len(menuResponses),
 	}).Info("Menus retrieved successfully")
 

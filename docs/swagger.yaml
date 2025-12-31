@@ -46,6 +46,14 @@ definitions:
     - month
     - year
     type: object
+  handler.ConfirmPaymentRequest:
+    properties:
+      billing_id:
+        example: 123
+        type: integer
+    required:
+    - billing_id
+    type: object
   handler.ConfirmPaymentWebhookRequest:
     properties:
       acquirer:
@@ -130,6 +138,17 @@ definitions:
     type: object
   models.BillingPenghuniResponse:
     properties:
+      billing_id:
+        description: Billing ID
+        example: 10
+        type: integer
+      billings_id:
+        example:
+        - 10
+        - 11
+        items:
+          type: integer
+        type: array
       bulan:
         description: Month name
         example: November
@@ -517,6 +536,98 @@ info:
   title: IPL Backend Service API
   version: "1.0"
 paths:
+  /api/v1/billings/{id}/attachments:
+    get:
+      consumes:
+      - application/json
+      description: List uploaded attachments for a billing
+      parameters:
+      - description: Billing ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of attachments
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: List billing attachments
+      tags:
+      - billings
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a file for a billing (multipart form, field `file`)
+      parameters:
+      - description: Billing ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: File to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: File uploaded
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Upload billing attachment
+      tags:
+      - billings
+  /api/v1/billings/{id}/attachments/{attachment_id}:
+    get:
+      consumes:
+      - application/json
+      description: Download attachment by id
+      parameters:
+      - description: Billing ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Attachment ID
+        in: path
+        name: attachment_id
+        required: true
+        type: integer
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: The file
+          schema:
+            type: file
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Download billing attachment
+      tags:
+      - billings
   /api/v1/billings/bulk-custom:
     post:
       consumes:
@@ -623,13 +734,41 @@ paths:
       summary: Confirm payment webhook
       tags:
       - billings
+  /api/v1/billings/confirm-single:
+    post:
+      consumes:
+      - application/json
+      description: Confirm payment by sending a single billing_id in JSON body
+      parameters:
+      - description: Billing ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ConfirmPaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Payment confirmed
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "400":
+          description: Invalid payload
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Confirm single billing payment
+      tags:
+      - billings
   /api/v1/billings/penghuni:
     get:
       consumes:
       - application/json
-      description: Get all billing data for penghuni users with complete information
-        including profile, role, and billing status. Nominal amounts are summed per
-        user per billing period (month/year).
+      description: Retrieve all billing penghuni records without pagination or search
       produces:
       - application/json
       responses:
@@ -638,6 +777,48 @@ paths:
           schema:
             allOf:
             - $ref: '#/definitions/utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.BillingPenghuniResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Get all billing penghuni
+      tags:
+      - billings
+  /api/v1/billings/penghuni/search:
+    get:
+      consumes:
+      - application/json
+      description: Get billing data for penghuni users. Supports pagination and search
+        by `q` (nama_penghuni or user ID).
+      parameters:
+      - description: Search by nama_penghuni or ID
+        in: query
+        name: q
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Billing penghuni retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.PaginatedResponse'
             - properties:
                 data:
                   items:
