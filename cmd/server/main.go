@@ -78,6 +78,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db.DB)
 	masterMenuRepo := repository.NewMasterMenuRepository(db.DB)
 	roleMenuRepo := repository.NewRoleMenuRepository(db.DB)
+	dashboardRepo := repository.NewDashboardRepository(db.DB)
 
 	// Initialize services
 	menuService := service.NewMenuService(menuRepo)
@@ -87,6 +88,7 @@ func main() {
 	billingService := service.NewBillingService(billingRepo, db.DB)
 	masterMenuService := service.NewMasterMenuService(masterMenuRepo, appLogger)
 	roleMenuService := service.NewRoleMenuService(roleMenuRepo, masterMenuRepo, appLogger)
+	dashboardService := service.NewDashboardService(dashboardRepo, appLogger)
 
 	// Initialize Gin router
 	router := gin.New()
@@ -99,7 +101,7 @@ func main() {
 	router.NoMethod(middleware.NoMethodHandler())
 
 	// Setup routes
-	handler.SetupRoutes(router, menuService, paymentService, userService, billingService, masterMenuService, roleMenuService, appLogger)
+	handler.SetupRoutes(router, menuService, paymentService, userService, billingService, masterMenuService, roleMenuService, dashboardService, appLogger)
 
 	// Create HTTP server
 	server := &http.Server{

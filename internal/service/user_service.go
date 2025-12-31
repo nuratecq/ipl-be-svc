@@ -74,6 +74,9 @@ func (s *userService) GetPenghuniUsers() ([]*response.PenghuniUserResponse, erro
 		// Get profile information if available
 		if user.UserID > 0 {
 			penghuniUser.NamaPenghuni = user.NamaPenghuni
+			penghuniUser.NamaPemilik = user.NamaPemilik
+			penghuniUser.Blok = user.Blok
+			penghuniUser.Rt = user.Rt
 			penghuniUser.NoHP = user.NoHP
 			penghuniUser.NoTelp = user.NoTelp
 			penghuniUser.DocumentID = user.DocumentID

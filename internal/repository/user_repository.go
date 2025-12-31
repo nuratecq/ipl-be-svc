@@ -29,7 +29,7 @@ func (r *userRepository) GetUserDetailByProfileID(profileID uint) (*models.UserD
 	var userDetail models.UserDetail
 
 	query := `
-		select p.id, p.nama_penghuni, p.no_hp, p.no_telp, p.document_id,
+		select p.id, p.nama_penghuni, p.nama_pemilik, p.blok, p.rt, p.no_hp, p.no_telp, p.document_id,
 			   uu.email, uu.id as user_id,
 			   ur."name", ur.id as role_id, ur."type" as role_type
 		from profiles p
@@ -55,7 +55,7 @@ func (r *userRepository) GetUsersWithPenghuniRole() ([]*models.UserDetail, error
 
 	query := `
 		select uu.id, uu.username, uu.email,
-			   p.nama_penghuni, p.no_hp, p.no_telp, p.document_id,
+			   p.nama_penghuni, p.nama_pemilik, p.blok, p.rt, p.no_hp, p.no_telp, p.document_id,
 			   ur."name" as role_name, ur.id as role_id, ur."type" as role_type,
 			   uu.id as user_id
 		from up_users uu

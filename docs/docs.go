@@ -24,6 +24,70 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/billings/bulk-custom": {
+            "post": {
+                "description": "Create custom billings for specified user IDs or all penghuni users if user_ids is empty. Requires auth-token cookie.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "Create bulk custom billings",
+                "parameters": [
+                    {
+                        "description": "Bulk billing request with month and year",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.BulkBillingCustomRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Bulk billing creation result",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.BulkBillingResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/billings/bulk-monthly": {
             "post": {
                 "description": "Create monthly billings for specified user IDs or all penghuni users if user_ids is empty. Requires auth-token cookie.",
@@ -88,6 +152,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/billings/confirm-payment": {
+            "post": {
+                "description": "Receive payment gateway webhook and process payment confirmation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "Confirm payment webhook",
+                "parameters": [
+                    {
+                        "description": "Webhook payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ConfirmPaymentWebhookRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Webhook received",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid payload",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/billings/penghuni": {
             "get": {
                 "description": "Get all billing data for penghuni users with complete information including profile, role, and billing status. Nominal amounts are summed per user per billing period (month/year).",
@@ -121,6 +225,129 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/dashboard/billings": {
+            "get": {
+                "description": "Get list of billings with optional RT, bulan, tahun filters and pagination",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Get billing list with pagination",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "RT (Rukun Tetangga) number - optional, if not provided will return all",
+                        "name": "rt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Month (1-12) - optional",
+                        "name": "bulan",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Year - optional",
+                        "name": "tahun",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 10, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved billing list",
+                        "schema": {
+                            "$ref": "#/definitions/utils.PaginatedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid parameters",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/dashboard/statistics": {
+            "get": {
+                "description": "Get billing statistics (unpaid and total) for a specific RT with optional month and year filters",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Get dashboard statistics by RT",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "RT (Rukun Tetangga) number",
+                        "name": "rt",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Month (1-12)",
+                        "name": "bulan",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Year",
+                        "name": "tahun",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved dashboard statistics",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid RT parameter",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "500": {
@@ -1282,6 +1509,39 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "handler.BulkBillingCustomRequest": {
+            "type": "object",
+            "required": [
+                "billing_settings_id",
+                "month",
+                "year"
+            ],
+            "properties": {
+                "billing_settings_id": {
+                    "description": "Billing settings ID",
+                    "type": "integer"
+                },
+                "month": {
+                    "description": "Month 1-12",
+                    "type": "integer",
+                    "maximum": 12,
+                    "minimum": 1
+                },
+                "user_ids": {
+                    "description": "Empty means all penghuni users",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "year": {
+                    "description": "Reasonable year range",
+                    "type": "integer",
+                    "maximum": 2100,
+                    "minimum": 2020
+                }
+            }
+        },
         "handler.BulkBillingRequest": {
             "type": "object",
             "required": [
@@ -1310,12 +1570,70 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.ConfirmPaymentWebhookRequest": {
+            "type": "object",
+            "properties": {
+                "acquirer": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "additional_info": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "channel": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "order": {
+                    "type": "object",
+                    "properties": {
+                        "amount": {
+                            "type": "integer",
+                            "example": 175000
+                        },
+                        "invoice_number": {
+                            "type": "string",
+                            "example": "INV-1766570879-"
+                        }
+                    }
+                },
+                "service": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "transaction": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
         "handler.CreatePaymentLinkMultipleRequest": {
-            "type": "object"
+            "type": "object",
+            "required": [
+                "billing_ids"
+            ],
+            "properties": {
+                "billing_ids": {
+                    "description": "Array of billing IDs to create payment link for",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        6,
+                        2
+                    ]
+                }
+            }
         },
         "handler.UserDetailResponse": {
             "type": "object",
             "properties": {
+                "blok": {
+                    "type": "string",
+                    "example": "A1"
+                },
                 "document_id": {
                     "type": "string",
                     "example": "abc123def456"
@@ -1327,6 +1645,10 @@ const docTemplate = `{
                 "id": {
                     "type": "integer",
                     "example": 1
+                },
+                "nama_pemilik": {
+                    "type": "string",
+                    "example": "Jane Doe"
                 },
                 "nama_penghuni": {
                     "type": "string",
@@ -1351,6 +1673,10 @@ const docTemplate = `{
                 "role_type": {
                     "type": "string",
                     "example": "admin"
+                },
+                "rt": {
+                    "type": "integer",
+                    "example": 5
                 },
                 "user_id": {
                     "type": "integer",
@@ -1587,6 +1913,10 @@ const docTemplate = `{
         "response.PenghuniUserResponse": {
             "type": "object",
             "properties": {
+                "blok": {
+                    "type": "string",
+                    "example": "A1"
+                },
                 "document_id": {
                     "type": "string",
                     "example": "abc123def456"
@@ -1598,6 +1928,10 @@ const docTemplate = `{
                 "id": {
                     "type": "integer",
                     "example": 1
+                },
+                "nama_pemilik": {
+                    "type": "string",
+                    "example": "Jane Doe"
                 },
                 "nama_penghuni": {
                     "type": "string",
@@ -1622,6 +1956,10 @@ const docTemplate = `{
                 "role_type": {
                     "type": "string",
                     "example": "penghuni"
+                },
+                "rt": {
+                    "type": "integer",
+                    "example": 5
                 },
                 "username": {
                     "type": "string",
@@ -1718,7 +2056,42 @@ const docTemplate = `{
             }
         },
         "service.CreateRoleMenuRequest": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "document_id": {
+                    "type": "string",
+                    "example": "role_menu001"
+                },
+                "is_active": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "master_menu_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2,
+                        3
+                    ]
+                },
+                "role_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2
+                    ]
+                },
+                "role_menu_ord": {
+                    "type": "number",
+                    "example": 1
+                }
+            }
         },
         "service.PaymentLinkResponse": {
             "type": "object",

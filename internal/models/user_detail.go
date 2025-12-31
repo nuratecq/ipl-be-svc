@@ -4,6 +4,9 @@ package models
 type UserDetail struct {
 	ID           uint   `json:"id" gorm:"column:id"`
 	NamaPenghuni string `json:"nama_penghuni" gorm:"column:nama_penghuni"`
+	NamaPemilik  string `json:"nama_pemilik" gorm:"column:nama_pemilik"`
+	Blok         string `json:"blok" gorm:"column:blok"`
+	Rt           int    `json:"rt" gorm:"column:rt"`
 	NoHP         string `json:"no_hp" gorm:"column:no_hp"`
 	NoTelp       string `json:"no_telp" gorm:"column:no_telp"`
 	DocumentID   string `json:"document_id" gorm:"column:document_id"`

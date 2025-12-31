@@ -6,6 +6,9 @@ type PenghuniUserResponse struct {
 	Username     string `json:"username" example:"john_doe"`
 	Email        string `json:"email" example:"john.doe@example.com"`
 	NamaPenghuni string `json:"nama_penghuni" example:"John Doe"`
+	NamaPemilik  string `json:"nama_pemilik" example:"Jane Doe"`
+	Blok         string `json:"blok" example:"A1"`
+	Rt           int    `json:"rt" example:"5"`
 	NoHP         string `json:"no_hp" example:"+6281234567890"`
 	NoTelp       string `json:"no_telp" example:"021-12345678"`
 	DocumentID   string `json:"document_id" example:"abc123def456"`
