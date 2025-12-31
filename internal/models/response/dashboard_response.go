@@ -3,7 +3,7 @@ package response
 // DashboardStatisticsResponse represents dashboard statistics response
 type DashboardStatisticsResponse struct {
 	BelumBayar int `json:"belum_bayar" example:"5"`
-	Total      int `json:"total" example:"20"`
+	SudahBayar int `json:"sudah_bayar" example:"15"`
 }
 
 // BillingListItem represents a single billing item in the list

@@ -43,7 +43,7 @@ func (s *dashboardService) GetDashboardStatistics(rt int, bulan, tahun *int) (*r
 	logFields := map[string]interface{}{
 		"rt":          rt,
 		"belum_bayar": statistics.BelumBayar,
-		"total":       statistics.Total,
+		"sudah_bayar": statistics.SudahBayar,
 	}
 	if bulan != nil {
 		logFields["bulan"] = *bulan

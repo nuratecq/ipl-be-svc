@@ -218,11 +218,11 @@ func (r *billingRepository) GetBillingPenghuni(search string, page int, limit in
 
 	for rows.Next() {
 		var result models.BillingPenghuniResponse
-		var billingsIDsStr *string
+		var billingsIDsStr string
 		var bulan int
 
 		err := rows.Scan(
-			&result.BillingID,
+			&billingsIDsStr,
 			&result.DocumentID,
 			&result.Email,
 			&result.ID,
@@ -250,8 +250,8 @@ func (r *billingRepository) GetBillingPenghuni(search string, page int, limit in
 
 		// parse billings_ids string into slice of uint
 		result.BillingIDs = []uint{}
-		if billingsIDsStr != nil && *billingsIDsStr != "" {
-			parts := strings.Split(*billingsIDsStr, ",")
+		if billingsIDsStr != "" {
+			parts := strings.Split(billingsIDsStr, ",")
 			for _, p := range parts {
 				p = strings.TrimSpace(p)
 				if p == "" {

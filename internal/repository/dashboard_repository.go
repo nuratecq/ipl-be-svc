@@ -31,7 +31,7 @@ func (r *dashboardRepository) GetDashboardStatistics(rt int, bulan, tahun *int) 
 	query := `
 		SELECT
 			COUNT(*) FILTER (WHERE bsbl.master_general_status_id = 2) AS belum_bayar,
-			COUNT(*) AS total
+			COUNT(*) FILTER (WHERE bsbl.master_general_status_id = 6) AS sudah_bayar
 		FROM billings_profile_id_lnk bpil
 		JOIN billings b 
 			ON b.id = bpil.t_billing_id
