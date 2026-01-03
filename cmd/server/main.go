@@ -82,8 +82,8 @@ func main() {
 
 	// Initialize services
 	menuService := service.NewMenuService(menuRepo)
-	dokuService := service.NewDokuService(appLogger)
-	paymentService := service.NewPaymentService(billingRepo, dokuService, appLogger)
+	mayarService := service.NewMayarService(appLogger)
+	paymentService := service.NewPaymentService(billingRepo, mayarService, appLogger)
 	userService := service.NewUserService(userRepo, appLogger)
 	billingService := service.NewBillingService(billingRepo, db.DB)
 	masterMenuService := service.NewMasterMenuService(masterMenuRepo, appLogger)

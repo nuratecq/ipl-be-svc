@@ -450,7 +450,13 @@ definitions:
         type: array
       description:
         type: string
+      expired_at:
+        type: integer
+      invoice_id:
+        type: string
       payment_url:
+        type: string
+      transaction_id:
         type: string
     type: object
   service.UpdateMasterMenuRequest:
@@ -1144,7 +1150,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a DOKU payment link for a billing record by ID
+      description: Create a Mayar payment link for a billing record by ID
       parameters:
       - description: Billing ID
         in: path
@@ -1180,7 +1186,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a DOKU payment link for multiple billing records by IDs
+      description: Create a Mayar payment link for multiple billing records by IDs
       parameters:
       - description: Billing IDs
         in: body

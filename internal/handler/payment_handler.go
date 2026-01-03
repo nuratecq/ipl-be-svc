@@ -32,7 +32,7 @@ func NewPaymentHandler(paymentService service.PaymentService, logger *logger.Log
 
 // CreatePaymentLink creates a payment link for a billing record
 // @Summary Create payment link
-// @Description Create a DOKU payment link for a billing record by ID
+// @Description Create a Mayar payment link for a billing record by ID
 // @Tags payments
 // @Accept json
 // @Produce json
@@ -81,6 +81,7 @@ func (h *PaymentHandler) CreatePaymentLink(c *gin.Context) {
 		"billing_id":  billingID,
 		"amount":      response.Amount,
 		"payment_url": response.PaymentURL,
+		"document_id": response.DocumentID,
 	}).Info("Payment link created successfully")
 
 	c.JSON(http.StatusOK, response)
@@ -88,7 +89,7 @@ func (h *PaymentHandler) CreatePaymentLink(c *gin.Context) {
 
 // CreatePaymentLinkMultiple creates a payment link for multiple billing records
 // @Summary Create payment link for multiple billings
-// @Description Create a DOKU payment link for multiple billing records by IDs
+// @Description Create a Mayar payment link for multiple billing records by IDs
 // @Tags payments
 // @Accept json
 // @Produce json
@@ -142,6 +143,7 @@ func (h *PaymentHandler) CreatePaymentLinkMultiple(c *gin.Context) {
 	h.logger.WithFields(map[string]interface{}{
 		"billing_ids": request.BillingIDs,
 		"amount":      response.Amount,
+		"document_id": response.DocumentID,
 		"payment_url": response.PaymentURL,
 	}).Info("Payment link created successfully for multiple billings")
 

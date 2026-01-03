@@ -14,6 +14,7 @@ type Config struct {
 	Database DatabaseConfig
 	Logger   LoggerConfig
 	Doku     DokuConfig
+	Mayar    MayarConfig
 	JWT      JWTConfig
 	CORS     CORSConfig
 }
@@ -40,11 +41,17 @@ type LoggerConfig struct {
 	Format string
 }
 
-// DokuConfig holds DOKU payment configuration
+// DokuConfig holds DOKU payment configuration (deprecated, use Mayar instead)
 type DokuConfig struct {
 	ClientID  string
 	SecretKey string
 	BaseURL   string
+}
+
+// MayarConfig holds Mayar payment configuration
+type MayarConfig struct {
+	AuthKey string
+	BaseURL string
 }
 
 // JWTConfig holds JWT configuration
@@ -86,6 +93,10 @@ func Load() (*Config, error) {
 			ClientID:  getEnv("DOKU_CLIENT_ID", "BRN-0241-1762176502792"),
 			SecretKey: getEnv("DOKU_SECRET_KEY", "SK-PaILsZudZTytTSTNCmUV"),
 			BaseURL:   getEnv("DOKU_BASE_URL", "https://api-sandbox.doku.com"),
+		},
+		Mayar: MayarConfig{
+			AuthKey: getEnv("MAYAR_AUTH_KEY", "your-mayar-auth-key"),
+			BaseURL: getEnv("MAYAR_BASE_URL", "https://api.mayar.id/hl/v1"),
 		},
 		JWT: JWTConfig{
 			Secret: getEnv("JWT_SECRET", "your-secret-key"),

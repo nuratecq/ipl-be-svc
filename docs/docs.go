@@ -971,7 +971,7 @@ const docTemplate = `{
         },
         "/api/v1/payments/billing/link": {
             "post": {
-                "description": "Create a DOKU payment link for multiple billing records by IDs",
+                "description": "Create a Mayar payment link for multiple billing records by IDs",
                 "consumes": [
                     "application/json"
                 ],
@@ -1026,7 +1026,7 @@ const docTemplate = `{
         },
         "/api/v1/payments/billing/{id}/link": {
             "post": {
-                "description": "Create a DOKU payment link for a billing record by ID",
+                "description": "Create a Mayar payment link for a billing record by ID",
                 "consumes": [
                     "application/json"
                 ],
@@ -2388,7 +2388,16 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "expired_at": {
+                    "type": "integer"
+                },
+                "invoice_id": {
+                    "type": "string"
+                },
                 "payment_url": {
+                    "type": "string"
+                },
+                "transaction_id": {
                     "type": "string"
                 }
             }
