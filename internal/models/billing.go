@@ -8,6 +8,8 @@ import (
 type Billing struct {
 	ID          uint       `json:"id" gorm:"primarykey"`
 	DocumentID  *string    `json:"document_id" gorm:"column:document_id"`
+	NamaBilling *string    `json:"nama_billing" gorm:"column:nama_billing"`
+	Keterangan  *string    `json:"keterangan" gorm:"column:keterangan"`
 	Bulan       *int       `json:"bulan" gorm:"column:bulan"`
 	Tahun       *int       `json:"tahun" gorm:"column:tahun"`
 	Nominal     *int64     `json:"nominal" gorm:"column:nominal"`

@@ -8,7 +8,7 @@ import (
 
 // DashboardRepository defines the interface for dashboard data operations
 type DashboardRepository interface {
-	GetDashboardStatistics(rt int, bulan, tahun *int) (*response.DashboardStatisticsResponse, error)
+	GetDashboardStatistics(rt *int, bulan, tahun *int) (*response.DashboardStatisticsResponse, error)
 	GetBillingList(rt, bulan, tahun *int, page, limit int) ([]*response.BillingListItem, int64, error)
 }
 
@@ -25,29 +25,34 @@ func NewDashboardRepository(db *gorm.DB) DashboardRepository {
 }
 
 // GetDashboardStatistics retrieves dashboard statistics by RT with optional bulan and tahun filters
-func (r *dashboardRepository) GetDashboardStatistics(rt int, bulan, tahun *int) (*response.DashboardStatisticsResponse, error) {
+func (r *dashboardRepository) GetDashboardStatistics(rt *int, bulan, tahun *int) (*response.DashboardStatisticsResponse, error) {
 	var result response.DashboardStatisticsResponse
 
 	query := `
 		SELECT
 			COUNT(*) FILTER (WHERE bsbl.master_general_status_id = 2) AS belum_bayar,
+			COUNT(*) FILTER (WHERE bsbl.master_general_status_id = 6) AS sudah_bayar,
 			COUNT(*) AS total
 		FROM billings_profile_id_lnk bpil
-		JOIN billings b 
+		JOIN billings b
 			ON b.id = bpil.t_billing_id
 		   AND b.published_at IS NOT NULL
-		JOIN up_users_profile_lnk uupl 
+		JOIN up_users_profile_lnk uupl
 			ON uupl.user_id = bpil.user_id
-		JOIN profiles p 
+		JOIN profiles p
 			ON p.id = uupl.profile_id
 		   AND p.published_at IS NOT NULL
-		   AND p.rt = ?
-		JOIN billings_status_bill_lnk bsbl 
+		JOIN billings_status_bill_lnk bsbl
 			ON bsbl.t_billing_id = b.id
 	`
 
 	var args []interface{}
-	args = append(args, rt)
+
+	// Add RT filter if provided and not zero
+	if rt != nil && *rt != 0 {
+		query += " AND p.rt = ?"
+		args = append(args, *rt)
+	}
 
 	// Add bulan filter if provided
 	if bulan != nil {
@@ -107,8 +112,8 @@ func (r *dashboardRepository) GetBillingList(rt, bulan, tahun *int, page, limit 
 	var countArgs []interface{}
 	var dataArgs []interface{}
 
-	// Add RT filter if provided
-	if rt != nil {
+	// Add RT filter if provided and not zero
+	if rt != nil && *rt != 0 {
 		countQuery += " AND p.rt = ?"
 		dataQuery += " AND p.rt = ?"
 		countArgs = append(countArgs, *rt)

@@ -708,6 +708,53 @@ paths:
       summary: Create bulk monthly billings
       tags:
       - billings
+  /api/v1/billings/by-profile:
+    get:
+      consumes:
+      - application/json
+      description: Get billing data (id, profile_id, nama_billing, bulan, tahun, status_id,
+        status_name, keterangan) by profile ID with optional filters for bulan, tahun,
+        status_id, and rt. Profile ID is required. Requires auth-token cookie.
+      parameters:
+      - description: Profile ID (required)
+        in: query
+        name: profile_id
+        required: true
+        type: integer
+      - description: Filter by month (1-12)
+        in: query
+        name: bulan
+        type: integer
+      - description: Filter by year
+        in: query
+        name: tahun
+        type: integer
+      - description: Filter by status ID
+        in: query
+        name: status_id
+        type: integer
+      - description: Filter by RT
+        in: query
+        name: rt
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Get billing by profile ID with optional filters
+      tags:
+      - billings
   /api/v1/billings/confirm-payment:
     post:
       consumes:
@@ -832,6 +879,101 @@ paths:
       summary: Get billing penghuni list with summed nominals
       tags:
       - billings
+  /api/v1/billings/profile:
+    get:
+      consumes:
+      - application/json
+      description: Get profile billing data (id, nama_penghuni, nama_pemilik, blok,
+        rt) with optional filters for search, bulan, tahun, rt, and status_id. Search
+        parameter will filter by nama_penghuni or nama_pemilik using LIKE. Requires
+        auth-token cookie.
+      parameters:
+      - description: Search by nama_penghuni or nama_pemilik (case-insensitive LIKE)
+        in: query
+        name: search
+        type: string
+      - description: Filter by month (1-12)
+        in: query
+        name: bulan
+        type: integer
+      - description: Filter by year
+        in: query
+        name: tahun
+        type: integer
+      - description: Filter by RT
+        in: query
+        name: rt
+        type: integer
+      - description: Filter by status ID
+        in: query
+        name: status_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Get profile billing with optional filters
+      tags:
+      - billings
+  /api/v1/billings/statistics:
+    get:
+      consumes:
+      - application/json
+      description: Get billing statistics (total_billing, total_sudah_dibayar, total_belum_dibayar,
+        total_nominal) with optional filters for search, bulan, tahun, rt, and status_ids.
+        Search parameter will filter by nama_penghuni or nama_pemilik using LIKE.
+        Status_ids parameter accepts comma-separated values, if not provided defaults
+        to status IDs 2 and 6. Requires auth-token cookie.
+      parameters:
+      - description: Search by nama_penghuni or nama_pemilik (case-insensitive LIKE)
+        in: query
+        name: search
+        type: string
+      - description: Filter by month (1-12)
+        in: query
+        name: bulan
+        type: integer
+      - description: Filter by year
+        in: query
+        name: tahun
+        type: integer
+      - description: Filter by RT
+        in: query
+        name: rt
+        type: integer
+      - description: Filter by status IDs (comma-separated, e.g. '2,6,7')
+        in: query
+        name: status_ids
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Get billing statistics with optional filters
+      tags:
+      - billings
   /api/v1/dashboard/billings:
     get:
       consumes:
@@ -882,19 +1024,18 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get billing statistics (unpaid and total) for a specific RT with
-        optional month and year filters
+      description: Get dashboard statistics with optional RT, bulan, and tahun filters.
+        If rt=0 or not provided, no RT filter will be applied.
       parameters:
-      - description: RT (Rukun Tetangga) number
+      - description: Filter by RT (optional, if 0 or not provided, no RT filter applied)
         in: query
         name: rt
-        required: true
         type: integer
-      - description: Month (1-12)
+      - description: Filter by month (1-12)
         in: query
         name: bulan
         type: integer
-      - description: Year
+      - description: Filter by year
         in: query
         name: tahun
         type: integer
@@ -906,14 +1047,14 @@ paths:
           schema:
             $ref: '#/definitions/utils.APIResponse'
         "400":
-          description: Bad request - invalid RT parameter
+          description: Bad request - invalid parameter
           schema:
             $ref: '#/definitions/utils.APIResponse'
         "500":
           description: Internal server error
           schema:
             $ref: '#/definitions/utils.APIResponse'
-      summary: Get dashboard statistics by RT
+      summary: Get dashboard statistics
       tags:
       - dashboard
   /api/v1/master-menus:

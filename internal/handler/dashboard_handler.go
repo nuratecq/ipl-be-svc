@@ -25,31 +25,30 @@ func NewDashboardHandler(dashboardService service.DashboardService, logger *logg
 }
 
 // GetDashboardStatistics handles GET /api/v1/dashboard/statistics
-// @Summary Get dashboard statistics by RT
-// @Description Get billing statistics (unpaid and total) for a specific RT with optional month and year filters
+// @Summary Get dashboard statistics
+// @Description Get dashboard statistics with optional RT, bulan, and tahun filters. If rt=0 or not provided, no RT filter will be applied.
 // @Tags dashboard
 // @Accept json
 // @Produce json
-// @Param rt query int true "RT (Rukun Tetangga) number"
-// @Param bulan query int false "Month (1-12)"
-// @Param tahun query int false "Year"
+// @Param rt query int false "Filter by RT (optional, if 0 or not provided, no RT filter applied)"
+// @Param bulan query int false "Filter by month (1-12)"
+// @Param tahun query int false "Filter by year"
 // @Success 200 {object} utils.APIResponse "Successfully retrieved dashboard statistics"
-// @Failure 400 {object} utils.APIResponse "Bad request - invalid RT parameter"
+// @Failure 400 {object} utils.APIResponse "Bad request - invalid parameter"
 // @Failure 500 {object} utils.APIResponse "Internal server error"
 // @Router /api/v1/dashboard/statistics [get]
 func (h *DashboardHandler) GetDashboardStatistics(c *gin.Context) {
+	// Get optional rt parameter
+	var rt *int
 	rtStr := c.Query("rt")
-	if rtStr == "" {
-		h.logger.Error("RT parameter is required")
-		utils.BadRequestResponse(c, "RT parameter is required", nil)
-		return
-	}
-
-	rt, err := strconv.Atoi(rtStr)
-	if err != nil {
-		h.logger.WithError(err).WithField("rt", rtStr).Error("Invalid RT parameter format")
-		utils.BadRequestResponse(c, "Invalid RT parameter format", err)
-		return
+	if rtStr != "" {
+		rtValue, err := strconv.Atoi(rtStr)
+		if err != nil {
+			h.logger.WithError(err).WithField("rt", rtStr).Error("Invalid RT parameter format")
+			utils.BadRequestResponse(c, "Invalid RT parameter format", err)
+			return
+		}
+		rt = &rtValue
 	}
 
 	// Get optional bulan parameter
