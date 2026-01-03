@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ipl-be-svc/internal/models"
+	"ipl-be-svc/internal/models/response"
 	"ipl-be-svc/internal/repository"
 
 	"github.com/google/uuid"
@@ -22,6 +23,9 @@ type BillingService interface {
 	GetBillingPenghuni(search string, page int, limit int) ([]*models.BillingPenghuniResponse, int64, error)
 	ConfirmPayment(listIds []uint) error
 	GetBillingPenghuniAll() ([]*models.BillingPenghuniResponse, error)
+	GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int) ([]*response.ProfileBillingResponse, error)
+	GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int) ([]*response.BillingByProfileResponse, error)
+	GetBillingStatistics(search string, bulan *int, tahun *int, rt *int, statusIDs []int) (*response.BillingStatisticsResponse, error)
 	// Attachments
 	UploadBillingAttachment(billingID uint, filename string, content []byte) (*models.BillingAttachment, error)
 	GetBillingAttachments(billingID uint) ([]*models.BillingAttachment, error)
@@ -139,6 +143,8 @@ func (s *billingService) CreateBulkMonthlyBillings(userIDs []uint, month int, ye
 			// Create billing
 			billing := &models.Billing{
 				DocumentID:  &docID,
+				NamaBilling: &setting.NamaBilling,
+				Keterangan:  &setting.Keterangan,
 				Bulan:       &billingMonth,
 				Tahun:       &billingYear,
 				Nominal:     &nominal,
@@ -308,6 +314,8 @@ func (s *billingService) CreateBulkCustomBillings(userIDs []uint, billingSetting
 		nominalPtr := int64(nominal)
 		billing := &models.Billing{
 			DocumentID:  &docID,
+			NamaBilling: &setting.NamaBilling,
+			Keterangan:  &setting.Keterangan,
 			Bulan:       &billingMonth,
 			Tahun:       &billingYear,
 			Nominal:     &nominalPtr,
@@ -541,4 +549,19 @@ func (s *billingService) GetBillingAttachments(billingID uint) ([]*models.Billin
 func (s *billingService) GetBillingAttachmentByID(id uint) (*models.BillingAttachment, error) {
 	// The previous signature accepted single numeric id (DB id). Since we don't persist, we can't support numeric lookup.
 	return nil, fmt.Errorf("numeric lookup not supported: attachments are stored on disk without DB ids")
+}
+
+// GetProfileBillingWithFilters retrieves profile billing data with optional filters
+func (s *billingService) GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int) ([]*response.ProfileBillingResponse, error) {
+	return s.billingRepo.GetProfileBillingWithFilters(search, bulan, tahun, rt, statusID)
+}
+
+// GetBillingByProfileID retrieves billing data by profile ID with optional filters
+func (s *billingService) GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int) ([]*response.BillingByProfileResponse, error) {
+	return s.billingRepo.GetBillingByProfileID(profileID, bulan, tahun, statusID, rt)
+}
+
+// GetBillingStatistics retrieves billing statistics with optional filters
+func (s *billingService) GetBillingStatistics(search string, bulan *int, tahun *int, rt *int, statusIDs []int) (*response.BillingStatisticsResponse, error) {
+	return s.billingRepo.GetBillingStatistics(search, bulan, tahun, rt, statusIDs)
 }

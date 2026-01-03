@@ -152,6 +152,74 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/billings/by-profile": {
+            "get": {
+                "description": "Get billing data (id, profile_id, nama_billing, bulan, tahun, status_id, status_name, keterangan) by profile ID with optional filters for bulan, tahun, status_id, and rt. Profile ID is required. Requires auth-token cookie.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "Get billing by profile ID with optional filters",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Profile ID (required)",
+                        "name": "profile_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by month (1-12)",
+                        "name": "bulan",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by year",
+                        "name": "tahun",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by status ID",
+                        "name": "status_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by RT",
+                        "name": "rt",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/billings/confirm-payment": {
             "post": {
                 "description": "Receive payment gateway webhook and process payment confirmation",
@@ -341,6 +409,140 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/billings/profile": {
+            "get": {
+                "description": "Get profile billing data (id, nama_penghuni, nama_pemilik, blok, rt) with optional filters for search, bulan, tahun, rt, and status_id. Search parameter will filter by nama_penghuni or nama_pemilik using LIKE. Requires auth-token cookie.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "Get profile billing with optional filters",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search by nama_penghuni or nama_pemilik (case-insensitive LIKE)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by month (1-12)",
+                        "name": "bulan",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by year",
+                        "name": "tahun",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by RT",
+                        "name": "rt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by status ID",
+                        "name": "status_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/billings/statistics": {
+            "get": {
+                "description": "Get billing statistics (total_billing, total_sudah_dibayar, total_belum_dibayar, total_nominal) with optional filters for search, bulan, tahun, rt, and status_ids. Search parameter will filter by nama_penghuni or nama_pemilik using LIKE. Status_ids parameter accepts comma-separated values, if not provided defaults to status IDs 2 and 6. Requires auth-token cookie.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "Get billing statistics with optional filters",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search by nama_penghuni or nama_pemilik (case-insensitive LIKE)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by month (1-12)",
+                        "name": "bulan",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by year",
+                        "name": "tahun",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by RT",
+                        "name": "rt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status IDs (comma-separated, e.g. '2,6,7')",
+                        "name": "status_ids",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/utils.APIResponse"
                         }
@@ -555,7 +757,7 @@ const docTemplate = `{
         },
         "/api/v1/dashboard/statistics": {
             "get": {
-                "description": "Get billing statistics (unpaid and total) for a specific RT with optional month and year filters",
+                "description": "Get dashboard statistics with optional RT, bulan, and tahun filters. If rt=0 or not provided, no RT filter will be applied.",
                 "consumes": [
                     "application/json"
                 ],
@@ -565,24 +767,23 @@ const docTemplate = `{
                 "tags": [
                     "dashboard"
                 ],
-                "summary": "Get dashboard statistics by RT",
+                "summary": "Get dashboard statistics",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "RT (Rukun Tetangga) number",
+                        "description": "Filter by RT (optional, if 0 or not provided, no RT filter applied)",
                         "name": "rt",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Month (1-12)",
+                        "description": "Filter by month (1-12)",
                         "name": "bulan",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Year",
+                        "description": "Filter by year",
                         "name": "tahun",
                         "in": "query"
                     }
@@ -595,7 +796,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad request - invalid RT parameter",
+                        "description": "Bad request - invalid parameter",
                         "schema": {
                             "$ref": "#/definitions/utils.APIResponse"
                         }

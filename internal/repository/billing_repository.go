@@ -2,6 +2,7 @@ package repository
 
 import (
 	"ipl-be-svc/internal/models"
+	"ipl-be-svc/internal/models/response"
 	"strconv"
 	"strings"
 
@@ -18,6 +19,9 @@ type BillingRepository interface {
 	CreateBulkBillingProfileLinks(links []*models.BillingProfileLink) error
 	GetBillingPenghuni(search string, page int, limit int) ([]*models.BillingPenghuniResponse, int64, error)
 	GetBillingPenghuniAll() ([]*models.BillingPenghuniResponse, error)
+	GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int) ([]*response.ProfileBillingResponse, error)
+	GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int) ([]*response.BillingByProfileResponse, error)
+	GetBillingStatistics(search string, bulan *int, tahun *int, rt *int, statusIDs []int) (*response.BillingStatisticsResponse, error)
 	// Note: attachment file operations are handled on disk (not persisted to DB)
 }
 
@@ -162,7 +166,7 @@ func (r *billingRepository) GetBillingPenghuni(search string, page int, limit in
 
 	// GROUP BY and ORDER, then LIMIT/OFFSET
 	dataQuery := baseQuery + `
-		GROUP BY u.document_id, u.email, u.id, p.nama_penghuni, p.no_hp, p.no_telp, r.id, r.name, r.type, u.username, b.bulan, b.tahun
+		GROUP BY u.document_id, u.email, u.id, p.nama_penghuni, p.no_hp, p.no_telp, r.id, r.name, r.type, u.username, b.bulan, b.tahun, b.document_id
 		ORDER BY u.id, b.tahun DESC, b.bulan DESC
 		LIMIT ? OFFSET ?
 	`
@@ -353,4 +357,131 @@ func (r *billingRepository) GetBillingPenghuniAll() ([]*models.BillingPenghuniRe
 	}
 
 	return results, nil
+}
+
+// GetProfileBillingWithFilters retrieves profile billing data with optional filters
+func (r *billingRepository) GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int) ([]*response.ProfileBillingResponse, error) {
+	var results []*response.ProfileBillingResponse
+
+	query := r.db.Table("billings_profile_id_lnk bpil").
+		Select("p.id, p.nama_penghuni, p.nama_pemilik, p.blok, p.rt").
+		Joins("JOIN billings b ON bpil.t_billing_id = b.id AND b.published_at IS NOT NULL").
+		Joins("JOIN billings_status_bill_lnk bsbl ON bpil.t_billing_id = bsbl.t_billing_id").
+		Joins("JOIN master_general_statuses mgs ON bsbl.master_general_status_id = mgs.id AND mgs.published_at IS NOT NULL").
+		Joins("JOIN up_users_profile_lnk uupl ON bpil.user_id = uupl.user_id").
+		Joins("JOIN profiles p ON uupl.profile_id = p.id AND p.published_at IS NOT NULL")
+
+	// Apply search filter if provided (safe from SQL injection using parameterized query)
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		query = query.Where("(p.nama_penghuni ILIKE ? OR p.nama_pemilik ILIKE ?)", searchPattern, searchPattern)
+	}
+
+	// Apply optional filters
+	if bulan != nil {
+		query = query.Where("b.bulan = ?", *bulan)
+	}
+	if tahun != nil {
+		query = query.Where("b.tahun = ?", *tahun)
+	}
+	if rt != nil {
+		query = query.Where("p.rt = ?", *rt)
+	}
+	if statusID != nil {
+		query = query.Where("bsbl.master_general_status_id = ?", *statusID)
+	}
+
+	query = query.Group("p.id, p.nama_penghuni, p.nama_pemilik, p.blok, p.rt")
+
+	err := query.Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+// GetBillingByProfileID retrieves billing data by profile ID with optional filters
+func (r *billingRepository) GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int) ([]*response.BillingByProfileResponse, error) {
+	var results []*response.BillingByProfileResponse
+
+	query := r.db.Table("billings_profile_id_lnk bpil").
+		Select("b.id, p.id as profile_id, b.nama_billing, b.bulan, b.tahun, b.nominal, mgs.id as status_id, mgs.status_name, b.keterangan").
+		Joins("JOIN billings b ON bpil.t_billing_id = b.id AND b.published_at IS NOT NULL").
+		Joins("JOIN billings_status_bill_lnk bsbl ON bpil.t_billing_id = bsbl.t_billing_id").
+		Joins("JOIN master_general_statuses mgs ON bsbl.master_general_status_id = mgs.id AND mgs.published_at IS NOT NULL").
+		Joins("JOIN up_users_profile_lnk uupl ON bpil.user_id = uupl.user_id").
+		Joins("JOIN profiles p ON uupl.profile_id = p.id AND p.published_at IS NOT NULL").
+		Where("p.id = ?", profileID)
+
+	// Apply optional filters
+	if bulan != nil {
+		query = query.Where("b.bulan = ?", *bulan)
+	}
+	if tahun != nil {
+		query = query.Where("b.tahun = ?", *tahun)
+	}
+	if statusID != nil {
+		query = query.Where("bsbl.master_general_status_id = ?", *statusID)
+	}
+	if rt != nil {
+		query = query.Where("p.rt = ?", *rt)
+	}
+
+	err := query.Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+// GetBillingStatistics retrieves billing statistics with optional filters
+func (r *billingRepository) GetBillingStatistics(search string, bulan *int, tahun *int, rt *int, statusIDs []int) (*response.BillingStatisticsResponse, error) {
+	var result response.BillingStatisticsResponse
+
+	query := r.db.Table("billings_profile_id_lnk bpil").
+		Select(`
+			COUNT(b.id) AS total_billing,
+			SUM(CASE WHEN bsbl.master_general_status_id = 6 THEN 1 ELSE 0 END) AS total_sudah_dibayar,
+			SUM(CASE WHEN bsbl.master_general_status_id = 2 THEN 1 ELSE 0 END) AS total_belum_dibayar,
+			SUM(b.nominal) AS total_nominal
+		`).
+		Joins("JOIN billings b ON bpil.t_billing_id = b.id AND b.published_at IS NOT NULL").
+		Joins("JOIN billings_status_bill_lnk bsbl ON bpil.t_billing_id = bsbl.t_billing_id").
+		Joins("JOIN master_general_statuses mgs ON bsbl.master_general_status_id = mgs.id AND mgs.published_at IS NOT NULL").
+		Joins("JOIN up_users_profile_lnk uupl ON bpil.user_id = uupl.user_id").
+		Joins("JOIN profiles p ON uupl.profile_id = p.id AND p.published_at IS NOT NULL")
+
+	// Apply search filter if provided (safe from SQL injection using parameterized query)
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		query = query.Where("(p.nama_penghuni ILIKE ? OR p.nama_pemilik ILIKE ?)", searchPattern, searchPattern)
+	}
+
+	// Apply optional filters
+	if bulan != nil {
+		query = query.Where("b.bulan = ?", *bulan)
+	}
+	if tahun != nil {
+		query = query.Where("b.tahun = ?", *tahun)
+	}
+	if rt != nil {
+		query = query.Where("p.rt = ?", *rt)
+	}
+
+	// Handle status IDs filter
+	if len(statusIDs) > 0 {
+		query = query.Where("bsbl.master_general_status_id IN ?", statusIDs)
+	} else {
+		// Default to status IDs 2 and 6 if no status filter provided
+		query = query.Where("bsbl.master_general_status_id IN ?", []int{2, 6})
+	}
+
+	err := query.Scan(&result).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }

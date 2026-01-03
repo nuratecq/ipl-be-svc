@@ -501,3 +501,228 @@ func (h *BulkBillingHandler) DownloadBillingAttachment(c *gin.Context) {
 
 	c.FileAttachment(path, orig)
 }
+
+// GetProfileBillingWithFilters retrieves profile billing data with optional filters
+// @Summary Get profile billing with optional filters
+// @Description Get profile billing data (id, nama_penghuni, nama_pemilik, blok, rt) with optional filters for search, bulan, tahun, rt, and status_id. Search parameter will filter by nama_penghuni or nama_pemilik using LIKE. Requires auth-token cookie.
+// @Tags billings
+// @Accept json
+// @Produce json
+// @Param search query string false "Search by nama_penghuni or nama_pemilik (case-insensitive LIKE)"
+// @Param bulan query int false "Filter by month (1-12)"
+// @Param tahun query int false "Filter by year"
+// @Param rt query int false "Filter by RT"
+// @Param status_id query int false "Filter by status ID"
+// @Success 200 {object} utils.APIResponse
+// @Failure 400 {object} utils.APIResponse
+// @Failure 500 {object} utils.APIResponse
+// @Router /api/v1/billings/profile [get]
+func (h *BulkBillingHandler) GetProfileBillingWithFilters(c *gin.Context) {
+	var bulan, tahun, rt, statusID *int
+	var search string
+
+	// Parse optional query parameters
+	search = c.Query("search")
+
+	if bulanStr := c.Query("bulan"); bulanStr != "" {
+		if val, err := strconv.Atoi(bulanStr); err == nil {
+			bulan = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid bulan parameter", err)
+			return
+		}
+	}
+
+	if tahunStr := c.Query("tahun"); tahunStr != "" {
+		if val, err := strconv.Atoi(tahunStr); err == nil {
+			tahun = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid tahun parameter", err)
+			return
+		}
+	}
+
+	if rtStr := c.Query("rt"); rtStr != "" {
+		if val, err := strconv.Atoi(rtStr); err == nil {
+			rt = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid rt parameter", err)
+			return
+		}
+	}
+
+	if statusIDStr := c.Query("status_id"); statusIDStr != "" {
+		if val, err := strconv.Atoi(statusIDStr); err == nil {
+			statusID = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid status_id parameter", err)
+			return
+		}
+	}
+
+	// Call service to get data
+	results, err := h.billingService.GetProfileBillingWithFilters(search, bulan, tahun, rt, statusID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to get profile billing with filters")
+		utils.InternalServerErrorResponse(c, "Failed to retrieve profile billing data", err)
+		return
+	}
+
+	utils.SuccessResponse(c, "Profile billing data retrieved successfully", results)
+}
+
+// GetBillingByProfileID retrieves billing data by profile ID with optional filters
+// @Summary Get billing by profile ID with optional filters
+// @Description Get billing data (id, profile_id, nama_billing, bulan, tahun, status_id, status_name, keterangan) by profile ID with optional filters for bulan, tahun, status_id, and rt. Profile ID is required. Requires auth-token cookie.
+// @Tags billings
+// @Accept json
+// @Produce json
+// @Param profile_id query int true "Profile ID (required)"
+// @Param bulan query int false "Filter by month (1-12)"
+// @Param tahun query int false "Filter by year"
+// @Param status_id query int false "Filter by status ID"
+// @Param rt query int false "Filter by RT"
+// @Success 200 {object} utils.APIResponse
+// @Failure 400 {object} utils.APIResponse
+// @Failure 500 {object} utils.APIResponse
+// @Router /api/v1/billings/by-profile [get]
+func (h *BulkBillingHandler) GetBillingByProfileID(c *gin.Context) {
+	// Profile ID is required
+	profileIDStr := c.Query("profile_id")
+	if profileIDStr == "" {
+		utils.BadRequestResponse(c, "profile_id parameter is required", nil)
+		return
+	}
+
+	profileID, err := strconv.ParseUint(profileIDStr, 10, 32)
+	if err != nil {
+		utils.BadRequestResponse(c, "Invalid profile_id parameter", nil)
+		return
+	}
+
+	var bulan, tahun, statusID, rt *int
+
+	// Parse optional query parameters
+	if bulanStr := c.Query("bulan"); bulanStr != "" {
+		if val, err := strconv.Atoi(bulanStr); err == nil {
+			bulan = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid bulan parameter", nil)
+			return
+		}
+	}
+
+	if tahunStr := c.Query("tahun"); tahunStr != "" {
+		if val, err := strconv.Atoi(tahunStr); err == nil {
+			tahun = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid tahun parameter", nil)
+			return
+		}
+	}
+
+	if statusIDStr := c.Query("status_id"); statusIDStr != "" {
+		if val, err := strconv.Atoi(statusIDStr); err == nil {
+			statusID = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid status_id parameter", nil)
+			return
+		}
+	}
+
+	if rtStr := c.Query("rt"); rtStr != "" {
+		if val, err := strconv.Atoi(rtStr); err == nil {
+			rt = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid rt parameter", nil)
+			return
+		}
+	}
+
+	// Call service to get data
+	results, err := h.billingService.GetBillingByProfileID(uint(profileID), bulan, tahun, statusID, rt)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to get billing by profile ID")
+		utils.InternalServerErrorResponse(c, "Failed to retrieve billing data", err)
+		return
+	}
+
+	utils.SuccessResponse(c, "Billing data retrieved successfully", results)
+}
+
+// GetBillingStatistics retrieves billing statistics with optional filters
+// @Summary Get billing statistics with optional filters
+// @Description Get billing statistics (total_billing, total_sudah_dibayar, total_belum_dibayar, total_nominal) with optional filters for search, bulan, tahun, rt, and status_ids. Search parameter will filter by nama_penghuni or nama_pemilik using LIKE. Status_ids parameter accepts comma-separated values, if not provided defaults to status IDs 2 and 6. Requires auth-token cookie.
+// @Tags billings
+// @Accept json
+// @Produce json
+// @Param search query string false "Search by nama_penghuni or nama_pemilik (case-insensitive LIKE)"
+// @Param bulan query int false "Filter by month (1-12)"
+// @Param tahun query int false "Filter by year"
+// @Param rt query int false "Filter by RT"
+// @Param status_ids query string false "Filter by status IDs (comma-separated, e.g. '2,6,7')"
+// @Success 200 {object} utils.APIResponse
+// @Failure 400 {object} utils.APIResponse
+// @Failure 500 {object} utils.APIResponse
+// @Router /api/v1/billings/statistics [get]
+func (h *BulkBillingHandler) GetBillingStatistics(c *gin.Context) {
+	var bulan, tahun, rt *int
+	var statusIDs []int
+	var search string
+
+	// Parse optional query parameters
+	search = c.Query("search")
+
+	if bulanStr := c.Query("bulan"); bulanStr != "" {
+		if val, err := strconv.Atoi(bulanStr); err == nil {
+			bulan = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid bulan parameter", nil)
+			return
+		}
+	}
+
+	if tahunStr := c.Query("tahun"); tahunStr != "" {
+		if val, err := strconv.Atoi(tahunStr); err == nil {
+			tahun = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid tahun parameter", nil)
+			return
+		}
+	}
+
+	if rtStr := c.Query("rt"); rtStr != "" {
+		if val, err := strconv.Atoi(rtStr); err == nil {
+			rt = &val
+		} else {
+			utils.BadRequestResponse(c, "Invalid rt parameter", nil)
+			return
+		}
+	}
+
+	// Parse status_ids parameter (comma-separated)
+	if statusIDsStr := c.Query("status_ids"); statusIDsStr != "" {
+		parts := strings.Split(statusIDsStr, ",")
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				if val, err := strconv.Atoi(part); err == nil {
+					statusIDs = append(statusIDs, val)
+				} else {
+					utils.BadRequestResponse(c, "Invalid status_ids parameter", nil)
+					return
+				}
+			}
+		}
+	}
+
+	// Call service to get data
+	result, err := h.billingService.GetBillingStatistics(search, bulan, tahun, rt, statusIDs)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to get billing statistics")
+		utils.InternalServerErrorResponse(c, "Failed to retrieve billing statistics", err)
+		return
+	}
+
+	utils.SuccessResponse(c, "Billing statistics retrieved successfully", result)
+}

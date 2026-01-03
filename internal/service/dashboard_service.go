@@ -9,7 +9,7 @@ import (
 
 // DashboardService interface defines dashboard service methods
 type DashboardService interface {
-	GetDashboardStatistics(rt int, bulan, tahun *int) (*response.DashboardStatisticsResponse, error)
+	GetDashboardStatistics(rt *int, bulan, tahun *int) (*response.DashboardStatisticsResponse, error)
 	GetBillingList(rt, bulan, tahun *int, page, limit int) ([]*response.BillingListItem, int64, error)
 }
 
@@ -28,12 +28,7 @@ func NewDashboardService(dashboardRepo repository.DashboardRepository, logger *l
 }
 
 // GetDashboardStatistics gets dashboard statistics by RT with optional bulan and tahun filters
-func (s *dashboardService) GetDashboardStatistics(rt int, bulan, tahun *int) (*response.DashboardStatisticsResponse, error) {
-	if rt <= 0 {
-		s.logger.WithField("rt", rt).Error("Invalid RT parameter")
-		return nil, fmt.Errorf("invalid RT parameter")
-	}
-
+func (s *dashboardService) GetDashboardStatistics(rt *int, bulan, tahun *int) (*response.DashboardStatisticsResponse, error) {
 	statistics, err := s.dashboardRepo.GetDashboardStatistics(rt, bulan, tahun)
 	if err != nil {
 		s.logger.WithError(err).WithField("rt", rt).Error("Failed to get dashboard statistics")

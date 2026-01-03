@@ -72,6 +72,12 @@ func SetupRoutes(
 			billings.GET("/penghuni", bulkBillingHandler.GetBillingPenghuni)
 			// Paginated/search endpoint
 			billings.GET("/penghuni/search", bulkBillingHandler.GetBillingPenghuniSearch)
+			// Get profile billing with optional filters
+			billings.GET("/profile", bulkBillingHandler.GetProfileBillingWithFilters)
+			// Get billing by profile ID with optional filters
+			billings.GET("/by-profile", bulkBillingHandler.GetBillingByProfileID)
+			// Get billing statistics with optional filters
+			billings.GET("/statistics", bulkBillingHandler.GetBillingStatistics)
 			// Billing attachments
 			billings.POST("/:id/attachments", bulkBillingHandler.UploadBillingAttachment)
 			billings.GET("/:id/attachments", bulkBillingHandler.ListBillingAttachments)
