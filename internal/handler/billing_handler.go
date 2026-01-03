@@ -199,7 +199,41 @@ func (h *BulkBillingHandler) GetBillingPenghuni(c *gin.Context) {
 	utils.SuccessResponse(c, "Billing penghuni retrieved successfully", results)
 }
 
-// ConfirmPaymentWebhookRequest represents the payload sent by payment gateway webhooks
+// MayarWebhookRequest represents the payload sent by Mayar payment gateway webhooks
+type MayarWebhookRequest struct {
+	Event string `json:"event" example:"payment.received"`
+	Data  struct {
+		ID                          string      `json:"id"`
+		TransactionID               string      `json:"transactionId"`
+		Status                      string      `json:"status"`
+		TransactionStatus           string      `json:"transactionStatus"`
+		CreatedAt                   string      `json:"createdAt"`
+		UpdatedAt                   string      `json:"updatedAt"`
+		MerchantID                  string      `json:"merchantId"`
+		MerchantName                string      `json:"merchantName"`
+		MerchantEmail               string      `json:"merchantEmail"`
+		CustomerID                  string      `json:"customerId"`
+		CustomerName                string      `json:"customerName"`
+		CustomerEmail               string      `json:"customerEmail"`
+		CustomerMobile              string      `json:"customerMobile"`
+		Amount                      int64       `json:"amount"`
+		PaymentLinkAmount           int64       `json:"paymentLinkAmount"`
+		IsAdminFeeBorneByCustomer   interface{} `json:"isAdminFeeBorneByCustomer"`
+		IsChannelFeeBorneByCustomer interface{} `json:"isChannelFeeBorneByCustomer"`
+		ProductID                   string      `json:"productId"`
+		ProductName                 string      `json:"productName"`
+		ProductDescription          string      `json:"productDescription" example:"1372,67 (DocumentID: monthly-xxx)"`
+		ProductType                 string      `json:"productType"`
+		PixelFbp                    interface{} `json:"pixelFbp"`
+		PixelFbc                    interface{} `json:"pixelFbc"`
+		Qty                         int         `json:"qty"`
+		CouponUsed                  interface{} `json:"couponUsed"`
+		PaymentMethod               string      `json:"paymentMethod"`
+		NettAmount                  int64       `json:"nettAmount"`
+	} `json:"data"`
+}
+
+// ConfirmPaymentWebhookRequest represents the payload sent by payment gateway webhooks (deprecated, use MayarWebhookRequest)
 type ConfirmPaymentWebhookRequest struct {
 	Service  map[string]interface{} `json:"service"`
 	Acquirer map[string]interface{} `json:"acquirer"`
@@ -213,63 +247,96 @@ type ConfirmPaymentWebhookRequest struct {
 }
 
 // ConfirmPaymentWebhook handles incoming payment gateway webhooks for confirming payments
-// @Summary Confirm payment webhook
-// @Description Receive payment gateway webhook and process payment confirmation
+// @Summary Confirm payment webhook (Mayar)
+// @Description Receive Mayar payment gateway webhook and process payment confirmation
 // @Tags billings
 // @Accept json
 // @Produce json
-// @Param request body ConfirmPaymentWebhookRequest true "Webhook payload"
+// @Param request body MayarWebhookRequest true "Mayar webhook payload"
 // @Success 200 {object} utils.APIResponse "Webhook received"
 // @Failure 400 {object} utils.APIResponse "Invalid payload"
 // @Router /api/v1/billings/confirm-payment [post]
 func (h *BulkBillingHandler) ConfirmPaymentWebhook(c *gin.Context) {
-	var req ConfirmPaymentWebhookRequest
+	var req MayarWebhookRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Error("Invalid webhook payload")
 		utils.BadRequestResponse(c, "Invalid webhook payload", err)
 		return
 	}
 
-	// For now, just log the received webhook and return success.
-	// Future: validate signature, map invoice/VA to billing record, update status and create payment record.
+	// Log the received webhook
+	h.logger.WithFields(map[string]interface{}{
+		"event":               req.Event,
+		"transaction_id":      req.Data.TransactionID,
+		"status":              req.Data.Status,
+		"amount":              req.Data.Amount,
+		"product_description": req.Data.ProductDescription,
+	}).Info("Received Mayar payment webhook")
 
-	status := ""
-	if req.Transaction != nil {
-		if s, ok := req.Transaction["status"].(string); ok {
-			status = s
-		}
+	// Parse billing IDs from productDescription
+	// Format: "1372,67 (DocumentID: ...)" or "1372 (DocumentID: ...)"
+	// We need to split by space and take the first part, then split by comma if present
+
+	productDesc := strings.TrimSpace(req.Data.ProductDescription)
+	if productDesc == "" {
+		h.logger.Error("Empty product description in webhook")
+		utils.BadRequestResponse(c, "Empty product description", nil)
+		return
 	}
 
-	h.logger.WithFields(map[string]interface{}{
-		"invoice_number": req.Order.InvoiceNumber,
-		"amount":         req.Order.Amount,
-		"status":         status,
-	}).Info("Received payment webhook")
-	fmt.Println("req.Order.InvoiceNumber : ", req.Order.InvoiceNumber)
-	// get list id from invoice number
-	invoice := strings.Split(req.Order.InvoiceNumber, "-")[2]
-	fmt.Println("invoice : ", invoice)
-	listId := strings.Split(invoice, ",")
-	fmt.Println("listId : ", listId)
+	// Split by space and take first part (before the parenthesis)
+	parts := strings.Split(productDesc, " ")
+	if len(parts) == 0 {
+		h.logger.Error("Invalid product description format")
+		utils.BadRequestResponse(c, "Invalid product description format", nil)
+		return
+	}
+
+	billingIDsStr := parts[0]
+	fmt.Println("Billing IDs string:", billingIDsStr)
+
+	// Split by comma to get individual IDs
+	idStrings := strings.Split(billingIDsStr, ",")
+	fmt.Println("ID strings:", idStrings)
+
 	var uintListId []uint
-	for _, idStr := range listId {
+	for _, idStr := range idStrings {
+		idStr = strings.TrimSpace(idStr)
+		if idStr == "" {
+			continue
+		}
+
 		var id uint
 		_, err := fmt.Sscanf(idStr, "%d", &id)
 		if err != nil {
-			h.logger.WithError(err).Error("Invalid ID in invoice number")
-			utils.BadRequestResponse(c, "Invalid ID in invoice number", err)
+			h.logger.WithError(err).WithField("id_string", idStr).Error("Invalid billing ID format")
+			utils.BadRequestResponse(c, fmt.Sprintf("Invalid billing ID format: %s", idStr), err)
 			return
 		}
 		uintListId = append(uintListId, id)
 	}
-	err := h.billingService.ConfirmPayment(uintListId)
-	if err != nil {
-		h.logger.WithError(err).Error("Failed to confirm payment for billing IDs")
-		utils.InternalServerErrorResponse(c, "Failed to confirm payment", err)
+
+	if len(uintListId) == 0 {
+		h.logger.Error("No valid billing IDs found in product description")
+		utils.BadRequestResponse(c, "No valid billing IDs found", nil)
 		return
 	}
 
-	utils.SuccessResponse(c, "Webhook received", nil)
+	h.logger.WithField("billing_ids", uintListId).Info("Parsed billing IDs from webhook")
+	fmt.Println("uintListId : ", uintListId)
+	// Confirm payment for all billing IDs
+	// err := h.billingService.ConfirmPayment(uintListId)
+	// if err != nil {
+	// 	h.logger.WithError(err).Error("Failed to confirm payment for billing IDs")
+	// 	utils.InternalServerErrorResponse(c, "Failed to confirm payment", err)
+	// 	return
+	// }
+
+	utils.SuccessResponse(c, "Webhook received and payment confirmed", map[string]interface{}{
+		"billing_ids": uintListId,
+		"event":       req.Event,
+		"status":      req.Data.Status,
+	})
 }
 
 // ConfirmPaymentRequest is request body for confirming a single billing

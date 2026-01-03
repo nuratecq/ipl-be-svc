@@ -2,9 +2,6 @@ package service
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,112 +12,48 @@ import (
 
 	"ipl-be-svc/internal/repository"
 	"ipl-be-svc/pkg/logger"
-
-	"github.com/google/uuid"
 )
 
-// DokuConfig holds DOKU API configuration
-type DokuConfig struct {
-	ClientID  string
-	SecretKey string
-	BaseURL   string
+// MayarConfig holds Mayar API configuration
+type MayarConfig struct {
+	AuthKey string
+	BaseURL string
 }
 
-// DokuOrder represents order details for DOKU checkout
-type DokuOrder struct {
-	Amount        int64          `json:"amount"`
-	InvoiceNumber string         `json:"invoice_number"`
-	Currency      string         `json:"currency"`
-	SessionID     string         `json:"session_id"`
-	CallbackURL   string         `json:"callback_url"`
-	LineItems     []DokuLineItem `json:"line_items"`
+// MayarItem represents an item in the invoice
+type MayarItem struct {
+	Quantity    int    `json:"quantity"`
+	Rate        int64  `json:"rate"`
+	Description string `json:"description"`
 }
 
-// DokuLineItem represents a line item in the order
-type DokuLineItem struct {
-	Name     string `json:"name"`
-	Price    int64  `json:"price"`
-	Quantity int    `json:"quantity"`
+// MayarCreateInvoiceRequest represents the Mayar invoice creation request
+type MayarCreateInvoiceRequest struct {
+	Name        string      `json:"name"`
+	Email       string      `json:"email"`
+	Mobile      string      `json:"mobile"`
+	RedirectURL string      `json:"redirectUrl"`
+	Description string      `json:"description"`
+	ExpiredAt   string      `json:"expiredAt"`
+	Items       []MayarItem `json:"items"`
 }
 
-// DokuLineItemResponse represents a line item in the response (with string price)
-type DokuLineItemResponse struct {
-	Name     string `json:"name"`
-	Price    string `json:"price"`
-	Quantity int    `json:"quantity"`
+// MayarCreateInvoiceResponse represents the Mayar API response
+type MayarCreateInvoiceResponse struct {
+	StatusCode int    `json:"statusCode"`
+	Messages   string `json:"messages"`
+	Data       struct {
+		ID            string `json:"id"`
+		TransactionID string `json:"transactionId"`
+		Link          string `json:"link"`
+		ExpiredAt     int64  `json:"expiredAt"`
+	} `json:"data"`
 }
 
-// DokuPayment represents payment configuration
-type DokuPayment struct {
-	PaymentDueDate int `json:"payment_due_date"`
-}
-
-// DokuCustomer represents customer information
-type DokuCustomer struct {
-	Name    string `json:"name"`
-	Email   string `json:"email"`
-	Phone   string `json:"phone"`
-	Address string `json:"address"`
-	Country string `json:"country"`
-}
-
-// DokuCheckoutRequest represents the complete DOKU checkout request
-type DokuCheckoutRequest struct {
-	Order    DokuOrder    `json:"order"`
-	Payment  DokuPayment  `json:"payment"`
-	Customer DokuCustomer `json:"customer"`
-}
-
-// DokuCheckoutResponse represents the actual DOKU API response structure
-type DokuCheckoutResponse struct {
-	Message  []string `json:"message"`
-	Response struct {
-		Order struct {
-			Amount        string                 `json:"amount"`
-			InvoiceNumber string                 `json:"invoice_number"`
-			Currency      string                 `json:"currency"`
-			SessionID     string                 `json:"session_id"`
-			CallbackURL   string                 `json:"callback_url"`
-			LineItems     []DokuLineItemResponse `json:"line_items"`
-		} `json:"order"`
-		Payment struct {
-			PaymentMethodTypes []string `json:"payment_method_types"`
-			PaymentDueDate     int      `json:"payment_due_date"`
-			TokenID            string   `json:"token_id"`
-			URL                string   `json:"url"`
-			ExpiredDate        string   `json:"expired_date"`
-			ExpiredDatetime    string   `json:"expired_datetime"`
-		} `json:"payment"`
-		Customer struct {
-			Email   string `json:"email"`
-			Phone   string `json:"phone"`
-			Name    string `json:"name"`
-			Address string `json:"address"`
-			Country string `json:"country"`
-		} `json:"customer"`
-		AdditionalInfo struct {
-			Origin struct {
-				Product   string `json:"product"`
-				System    string `json:"system"`
-				APIFormat string `json:"apiFormat"`
-				Source    string `json:"source"`
-			} `json:"origin"`
-			LineItems []DokuLineItemResponse `json:"line_items"`
-		} `json:"additional_info"`
-		UUID    interface{} `json:"uuid"` // Can be int64 or float64 depending on size
-		Headers struct {
-			RequestID string `json:"request_id"`
-			Signature string `json:"signature"`
-			Date      string `json:"date"`
-			ClientID  string `json:"client_id"`
-		} `json:"headers"`
-	} `json:"response"`
-}
-
-// DokuService defines the interface for DOKU payment operations
-type DokuService interface {
-	CreatePaymentLink(amount int64, description string) (string, error)
-	InitiateDokuCheckout(clientID, secretKey string, amount int64, description string) (*DokuCheckoutResponse, error)
+// MayarService defines the interface for Mayar payment operations
+type MayarService interface {
+	CreatePaymentLink(amount int64, billingIDsStr string, documentIDs string, humanDescription string, customerName string, customerEmail string, customerPhone string) (string, error)
+	CreateInvoice(req *MayarCreateInvoiceRequest) (*MayarCreateInvoiceResponse, error)
 }
 
 // PaymentService defines the interface for payment operations
@@ -131,30 +64,34 @@ type PaymentService interface {
 
 // PaymentLinkResponse represents the response for payment link creation
 type PaymentLinkResponse struct {
-	BillingID   uint   `json:"billing_id,omitempty"`
-	BillingIDs  []uint `json:"billing_ids,omitempty"`
-	Amount      int64  `json:"amount"`
-	PaymentURL  string `json:"payment_url"`
-	Description string `json:"description"`
+	BillingID     uint   `json:"billing_id,omitempty"`
+	BillingIDs    []uint `json:"billing_ids,omitempty"`
+	Amount        int64  `json:"amount"`
+	PaymentURL    string `json:"payment_url"`
+	Description   string `json:"description"`
+	InvoiceID     string `json:"invoice_id,omitempty"`
+	TransactionID string `json:"transaction_id,omitempty"`
+	ExpiredAt     int64  `json:"expired_at,omitempty"`
+	DocumentID    string `json:"document_id,omitempty"`
 }
 
 // paymentService implements PaymentService
 type paymentService struct {
-	billingRepo repository.BillingRepository
-	dokuService DokuService
-	logger      *logger.Logger
+	billingRepo  repository.BillingRepository
+	mayarService MayarService
+	logger       *logger.Logger
 }
 
 // NewPaymentService creates a new instance of PaymentService
-func NewPaymentService(billingRepo repository.BillingRepository, dokuService DokuService, logger *logger.Logger) PaymentService {
+func NewPaymentService(billingRepo repository.BillingRepository, mayarService MayarService, logger *logger.Logger) PaymentService {
 	return &paymentService{
-		billingRepo: billingRepo,
-		dokuService: dokuService,
-		logger:      logger,
+		billingRepo:  billingRepo,
+		mayarService: mayarService,
+		logger:       logger,
 	}
 }
 
-// CreatePaymentLink creates a DOKU payment link for a billing record
+// CreatePaymentLink creates a Mayar payment link for a billing record
 func (s *paymentService) CreatePaymentLink(billingID uint) (*PaymentLinkResponse, error) {
 	// Get billing record
 	billing, err := s.billingRepo.GetBillingByID(billingID)
@@ -170,16 +107,30 @@ func (s *paymentService) CreatePaymentLink(billingID uint) (*PaymentLinkResponse
 		return nil, fmt.Errorf("invalid billing nominal")
 	}
 
-	// Create description
-	description := fmt.Sprintf("Payment for Billing ID %d", billingID)
-	if billing.Bulan != nil && billing.Tahun != nil {
-		description = fmt.Sprintf("Payment for %d/%d - Billing ID %d", *billing.Bulan, *billing.Tahun, billingID)
+	// Use default customer information
+	userName := "Penghuni IPL"
+	userEmail := "billing@ipl.com"
+	userPhone := "08123456789"
+
+	// Create billing IDs string for webhook parsing (just the ID)
+	billingIDsStr := fmt.Sprintf("%d", billingID)
+
+	// Get document ID
+	documentID := ""
+	if billing.DocumentID != nil {
+		documentID = *billing.DocumentID
 	}
 
-	// Create DOKU payment link
-	paymentURL, err := s.dokuService.CreatePaymentLink(*billing.Nominal, description)
+	// Create human-readable description
+	humanDescription := fmt.Sprintf("Payment for Billing ID %d", billingID)
+	if billing.Bulan != nil && billing.Tahun != nil {
+		humanDescription = fmt.Sprintf("Payment for %d/%d - Billing ID %d", *billing.Bulan, *billing.Tahun, billingID)
+	}
+
+	// Create Mayar payment link
+	paymentURL, err := s.mayarService.CreatePaymentLink(*billing.Nominal, billingIDsStr, documentID, humanDescription, userName, userEmail, userPhone)
 	if err != nil {
-		s.logger.WithError(err).WithField("billing_id", billingID).Error("Failed to create DOKU payment link")
+		s.logger.WithError(err).WithField("billing_id", billingID).Error("Failed to create Mayar payment link")
 		return nil, fmt.Errorf("failed to create payment link: %w", err)
 	}
 
@@ -187,11 +138,12 @@ func (s *paymentService) CreatePaymentLink(billingID uint) (*PaymentLinkResponse
 		BillingID:   billingID,
 		Amount:      *billing.Nominal,
 		PaymentURL:  paymentURL,
-		Description: description,
+		DocumentID:  documentID,
+		Description: humanDescription,
 	}, nil
 }
 
-// CreatePaymentLinkMultiple creates a DOKU payment link for multiple billing records
+// CreatePaymentLinkMultiple creates a Mayar payment link for multiple billing records
 func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentLinkResponse, error) {
 	if len(billingIDs) == 0 {
 		return nil, fmt.Errorf("billing IDs cannot be empty")
@@ -199,6 +151,7 @@ func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentL
 
 	var totalAmount int64 = 0
 	var listBillingIDs []uint
+	var listDocumentIDs []string
 
 	for _, billingID := range billingIDs {
 		// Get billing record
@@ -215,14 +168,19 @@ func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentL
 		}
 
 		totalAmount += *billing.Nominal
-
-		// Create description part
 		listBillingIDs = append(listBillingIDs, billingID)
-
+		if billing.DocumentID != nil {
+			listDocumentIDs = append(listDocumentIDs, *billing.DocumentID)
+		}
 	}
 
-	// Create combined description
-	description := strings.Join(func() []string {
+	// Use default customer information
+	userName := "Penghuni IPL"
+	userEmail := "billing@ipl.com"
+	userPhone := "08123456789"
+
+	// Create billing IDs string for webhook parsing (comma-separated)
+	billingIDsStr := strings.Join(func() []string {
 		parts := make([]string, len(billingIDs))
 		for i, id := range billingIDs {
 			parts[i] = fmt.Sprintf("%d", id)
@@ -230,13 +188,16 @@ func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentL
 		return parts
 	}(), ",")
 
-	fmt.Println("totalAmount : ", totalAmount)
-	fmt.Println("Desc : ", description)
+	// Create document IDs string
+	documentIDsStr := strings.Join(listDocumentIDs, ", ")
 
-	// Create DOKU payment link
-	paymentURL, err := s.dokuService.CreatePaymentLink(totalAmount, description)
+	// Create human-readable description
+	humanDescription := fmt.Sprintf("Payment for %d billings", len(billingIDs))
+
+	// Create Mayar payment link
+	paymentURL, err := s.mayarService.CreatePaymentLink(totalAmount, billingIDsStr, documentIDsStr, humanDescription, userName, userEmail, userPhone)
 	if err != nil {
-		s.logger.WithError(err).WithField("billing_ids", billingIDs).Error("Failed to create DOKU payment link")
+		s.logger.WithError(err).WithField("billing_ids", billingIDs).Error("Failed to create Mayar payment link")
 		return nil, fmt.Errorf("failed to create payment link: %w", err)
 	}
 
@@ -244,195 +205,180 @@ func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentL
 		BillingIDs:  billingIDs,
 		Amount:      totalAmount,
 		PaymentURL:  paymentURL,
-		Description: description,
+		Description: humanDescription,
 	}, nil
 }
 
-// dokuService implements DokuService
-type dokuService struct {
+// mayarService implements MayarService
+type mayarService struct {
 	logger *logger.Logger
-	config DokuConfig
+	config MayarConfig
 }
 
-// NewDokuService creates a new instance of DokuService
-func NewDokuService(logger *logger.Logger) DokuService {
-	config := DokuConfig{
-		ClientID:  os.Getenv("DOKU_CLIENT_ID"),
-		SecretKey: os.Getenv("DOKU_SECRET_KEY"),
-		BaseURL:   "https://api-sandbox.doku.com",
+// NewMayarService creates a new instance of MayarService
+func NewMayarService(logger *logger.Logger) MayarService {
+	config := MayarConfig{
+		AuthKey: os.Getenv("MAYAR_AUTH_KEY"),
+		BaseURL: os.Getenv("MAYAR_BASE_URL"),
 	}
 
-	if config.ClientID == "" {
-		config.ClientID = "BRN-0241-1762176502792" // Default dari Python code
-	}
-	if config.SecretKey == "" {
-		config.SecretKey = "SK-PaILsZudZTytTSTNCmUV" // Default dari Python code
+	if config.BaseURL == "" {
+		config.BaseURL = "https://api.mayar.id/hl/v1"
 	}
 
-	return &dokuService{
+	return &mayarService{
 		logger: logger,
 		config: config,
 	}
 }
 
-// generateSignature creates HMACSHA256 signature exactly like Python code
-func (d *dokuService) generateSignature(clientID, secretKey, requestID, requestTimestamp, requestTarget, body string) string {
-	// Step 1: Digest body menggunakan SHA256 lalu encode base64
-	bodyHash := sha256.Sum256([]byte(body))
-	digestBase64 := base64.StdEncoding.EncodeToString(bodyHash[:])
+// CreateInvoice creates an invoice using Mayar API
+func (m *mayarService) CreateInvoice(req *MayarCreateInvoiceRequest) (*MayarCreateInvoiceResponse, error) {
+	url := fmt.Sprintf("%s/invoice/create", m.config.BaseURL)
 
-	// Step 2: Gabungkan semua komponen signature
-	signatureComponents := fmt.Sprintf("Client-Id:%s\nRequest-Id:%s\nRequest-Timestamp:%s\nRequest-Target:%s\nDigest:%s",
-		clientID, requestID, requestTimestamp, requestTarget, digestBase64)
-
-	// Step 3: Buat HMAC-SHA256
-	h := hmac.New(sha256.New, []byte(secretKey))
-	h.Write([]byte(signatureComponents))
-	signatureHMAC := h.Sum(nil)
-	signatureBase64 := base64.StdEncoding.EncodeToString(signatureHMAC)
-
-	return fmt.Sprintf("HMACSHA256=%s", signatureBase64)
-}
-
-// InitiateDokuCheckout initiates DOKU checkout payment exactly like Python code
-func (d *dokuService) InitiateDokuCheckout(clientID, secretKey string, amount int64, description string) (*DokuCheckoutResponse, error) {
-	// --- Konfigurasi dasar ---
-	url := fmt.Sprintf("%s/checkout/v1/payment", d.config.BaseURL)
-	requestTarget := "/checkout/v1/payment"
-
-	// --- Generate ID & Timestamp ---
-	requestID := uuid.New().String()
-	requestTimestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-
-	// --- Payload body ---
-	payload := DokuCheckoutRequest{
-		Order: DokuOrder{
-			Amount:        amount + 5000, // Tambah service fee
-			InvoiceNumber: fmt.Sprintf("INV-%d-%s", time.Now().Unix(), description),
-			Currency:      "IDR",
-			SessionID:     "SU5WFDferd561dfasfasdfae123c",
-			CallbackURL:   "https://doku.com/",
-			LineItems: []DokuLineItem{
-				{Name: "Biaya IPL", Price: amount, Quantity: 1},
-				{Name: "Biaya Layanan", Price: 5000, Quantity: 1},
-			},
-		},
-		Payment: DokuPayment{PaymentDueDate: 60},
-		Customer: DokuCustomer{
-			Name:    "",
-			Email:   "",
-			Phone:   "+6285694566147",
-			Address: "Plaza Asia Office Park Unit 3",
-			Country: "ID",
-		},
-	}
-
-	// Konversi ke string JSON (compact, separators=(',', ':'))
-	bodyJSON, err := json.Marshal(payload)
+	// Marshal request to JSON
+	bodyJSON, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal payload: %w", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// --- Generate Signature ---
-	signature := d.generateSignature(clientID, secretKey, requestID, requestTimestamp, requestTarget, string(bodyJSON))
-
-	// --- Header HTTP ---
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyJSON))
+	// Create HTTP request
+	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyJSON))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Client-Id", clientID)
-	req.Header.Set("Request-Id", requestID)
-	req.Header.Set("Request-Timestamp", requestTimestamp)
-	req.Header.Set("Signature", signature)
+	// Set headers
+	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.config.AuthKey))
+	httpReq.Header.Set("Content-Type", "application/json")
 
-	// --- Eksekusi request ---
-	d.logger.Info("📡 Sending request to DOKU Sandbox...")
-	d.logger.WithFields(map[string]interface{}{
-		"url":               url,
-		"request_id":        requestID,
-		"request_timestamp": requestTimestamp,
-		"signature":         signature,
-	}).Info("Request Info")
+	// Log request
+	m.logger.WithFields(map[string]interface{}{
+		"url":  url,
+		"body": string(bodyJSON),
+	}).Info("📡 Sending request to Mayar API...")
 
+	// Execute request
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// --- Baca response ---
+	// Read response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Log response for debugging
-	d.logger.WithFields(map[string]interface{}{
+	// Log response
+	m.logger.WithFields(map[string]interface{}{
 		"status_code": resp.StatusCode,
 		"response":    string(body),
-	}).Info("DOKU API Response")
+	}).Info("Mayar API Response")
+
+	// Check for non-200 status codes
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Mayar API returned status %d: %s", resp.StatusCode, string(body))
+	}
 
 	// Parse response
-	var dokuResp DokuCheckoutResponse
-	if err := json.Unmarshal(body, &dokuResp); err != nil {
-		// If we can't parse as expected structure, try generic
-		var genericResp map[string]interface{}
-		if err := json.Unmarshal(body, &genericResp); err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
-		}
-
-		d.logger.WithField("response", genericResp).Error("Unexpected response structure")
-		return nil, fmt.Errorf("unexpected response structure: %v", genericResp)
+	var mayarResp MayarCreateInvoiceResponse
+	if err := json.Unmarshal(body, &mayarResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	// Debug log the parsed response
-	d.logger.WithFields(map[string]interface{}{
-		"message":     dokuResp.Message,
-		"payment_url": dokuResp.Response.Payment.URL,
-		"token_id":    dokuResp.Response.Payment.TokenID,
-	}).Info("Successfully parsed DOKU response")
+	m.logger.WithFields(map[string]interface{}{
+		"status":         mayarResp.StatusCode,
+		"message":        mayarResp.Messages,
+		"invoice_id":     mayarResp.Data.ID,
+		"transaction_id": mayarResp.Data.TransactionID,
+		"payment_link":   mayarResp.Data.Link,
+	}).Info("Successfully parsed Mayar response")
 
-	return &dokuResp, nil
+	return &mayarResp, nil
 }
 
-// CreatePaymentLink creates a payment link using DOKU service
-func (d *dokuService) CreatePaymentLink(amount int64, description string) (string, error) {
+// CreatePaymentLink creates a payment link using Mayar service
+// billingIDsStr: comma-separated billing IDs (e.g., "1372,67" or "1372")
+// documentIDs: comma-separated document IDs for reference
+// humanDescription: human-readable description for display
+func (m *mayarService) CreatePaymentLink(amount int64, billingIDsStr string, documentIDs string, humanDescription string, customerName string, customerEmail string, customerPhone string) (string, error) {
+	m.logger.WithFields(map[string]interface{}{
+		"amount":            amount,
+		"billing_ids":       billingIDsStr,
+		"document_ids":      documentIDs,
+		"human_description": humanDescription,
+		"customer_name":     customerName,
+		"customer_email":    customerEmail,
+		"customer_phone":    customerPhone,
+	}).Info("Creating Mayar payment link")
 
-	d.logger.WithFields(map[string]interface{}{
-		"amount":      amount,
-		"description": description,
-	}).Info("Creating DOKU payment link")
-
-	// Use configured credentials
-	clientID := d.config.ClientID
-	secretKey := d.config.SecretKey
-
-	if clientID == "" || secretKey == "" {
-		return "", fmt.Errorf("DOKU credentials not configured")
+	// Validate auth key
+	if m.config.AuthKey == "" {
+		return "", fmt.Errorf("Mayar auth key not configured")
 	}
 
-	// Initiate DOKU checkout
-	result, err := d.InitiateDokuCheckout(clientID, secretKey, amount, description)
+	// Set expiration to 30 days from now
+	expiredAt := time.Now().Add(30 * 24 * time.Hour).Format(time.RFC3339)
+
+	// Format product description: "<billing_ids> (DocumentID: <document_ids>)"
+	// This format is required for webhook parsing
+	productDescription := billingIDsStr
+	if documentIDs != "" {
+		productDescription = fmt.Sprintf("%s (DocumentID: %s)", billingIDsStr, documentIDs)
+	} else {
+		productDescription = fmt.Sprintf("%s (DocumentID: N/A)", billingIDsStr)
+	}
+
+	// Create invoice request
+	invoiceReq := &MayarCreateInvoiceRequest{
+		Name:        customerName,
+		Email:       customerEmail,
+		Mobile:      customerPhone,
+		RedirectURL: "https://web.mayar.id",
+		Description: productDescription, // This will be in webhook's productDescription field
+		ExpiredAt:   expiredAt,
+		Items: []MayarItem{
+			{
+				Quantity:    1,
+				Rate:        amount,
+				Description: humanDescription,
+			},
+			{
+				Quantity:    1,
+				Rate:        5000, // Fixed admin fee
+				Description: "Admin Fee",
+			},
+		},
+	}
+
+	m.logger.WithField("product_description", productDescription).Info("Product description for webhook parsing")
+
+	// Create invoice
+	result, err := m.CreateInvoice(invoiceReq)
 	if err != nil {
-		d.logger.WithError(err).Error("Failed to initiate DOKU checkout")
+		m.logger.WithError(err).Error("Failed to create Mayar invoice")
 		return "", err
 	}
 
-	// Extract payment URL from response
-	if result.Response.Payment.URL == "" {
-		d.logger.Error("Payment URL not found in response")
-		return "", fmt.Errorf("payment URL not found in response")
+	// Extract payment link from response
+	if result.Data.Link == "" {
+		m.logger.Error("Payment link not found in response")
+		return "", fmt.Errorf("payment link not found in response")
 	}
 
-	d.logger.WithFields(map[string]interface{}{
-		"amount":      amount,
-		"description": description,
-		"payment_url": result.Response.Payment.URL,
-	}).Info("DOKU payment link created successfully")
+	m.logger.WithFields(map[string]interface{}{
+		"amount":              amount,
+		"billing_ids":         billingIDsStr,
+		"document_ids":        documentIDs,
+		"product_description": productDescription,
+		"payment_link":        result.Data.Link,
+		"invoice_id":          result.Data.ID,
+		"transaction_id":      result.Data.TransactionID,
+	}).Info("Mayar payment link created successfully")
 
-	return result.Response.Payment.URL, nil
+	return result.Data.Link, nil
 }
