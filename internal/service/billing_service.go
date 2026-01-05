@@ -23,8 +23,8 @@ type BillingService interface {
 	GetBillingPenghuni(search string, page int, limit int) ([]*models.BillingPenghuniResponse, int64, error)
 	ConfirmPayment(listIds []uint) error
 	GetBillingPenghuniAll() ([]*models.BillingPenghuniResponse, error)
-	GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int) ([]*response.ProfileBillingResponse, error)
-	GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int) ([]*response.BillingByProfileResponse, error)
+	GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int, page int, limit int) ([]*response.ProfileBillingResponse, int64, error)
+	GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int, page int, limit int) ([]*response.BillingByProfileResponse, int64, error)
 	GetBillingStatistics(search string, bulan *int, tahun *int, rt *int, statusIDs []int) (*response.BillingStatisticsResponse, error)
 	// Attachments
 	UploadBillingAttachment(billingID uint, filename string, content []byte) (*models.BillingAttachment, error)
@@ -551,14 +551,14 @@ func (s *billingService) GetBillingAttachmentByID(id uint) (*models.BillingAttac
 	return nil, fmt.Errorf("numeric lookup not supported: attachments are stored on disk without DB ids")
 }
 
-// GetProfileBillingWithFilters retrieves profile billing data with optional filters
-func (s *billingService) GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int) ([]*response.ProfileBillingResponse, error) {
-	return s.billingRepo.GetProfileBillingWithFilters(search, bulan, tahun, rt, statusID)
+// GetProfileBillingWithFilters retrieves profile billing data with optional filters and supports pagination
+func (s *billingService) GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int, page int, limit int) ([]*response.ProfileBillingResponse, int64, error) {
+	return s.billingRepo.GetProfileBillingWithFilters(search, bulan, tahun, rt, statusID, page, limit)
 }
 
-// GetBillingByProfileID retrieves billing data by profile ID with optional filters
-func (s *billingService) GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int) ([]*response.BillingByProfileResponse, error) {
-	return s.billingRepo.GetBillingByProfileID(profileID, bulan, tahun, statusID, rt)
+// GetBillingByProfileID retrieves billing data by profile ID with optional filters and supports pagination
+func (s *billingService) GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int, page int, limit int) ([]*response.BillingByProfileResponse, int64, error) {
+	return s.billingRepo.GetBillingByProfileID(profileID, bulan, tahun, statusID, rt, page, limit)
 }
 
 // GetBillingStatistics retrieves billing statistics with optional filters

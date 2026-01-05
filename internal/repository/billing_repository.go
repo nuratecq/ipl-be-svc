@@ -19,8 +19,8 @@ type BillingRepository interface {
 	CreateBulkBillingProfileLinks(links []*models.BillingProfileLink) error
 	GetBillingPenghuni(search string, page int, limit int) ([]*models.BillingPenghuniResponse, int64, error)
 	GetBillingPenghuniAll() ([]*models.BillingPenghuniResponse, error)
-	GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int) ([]*response.ProfileBillingResponse, error)
-	GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int) ([]*response.BillingByProfileResponse, error)
+	GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int, page int, limit int) ([]*response.ProfileBillingResponse, int64, error)
+	GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int, page int, limit int) ([]*response.BillingByProfileResponse, int64, error)
 	GetBillingStatistics(search string, bulan *int, tahun *int, rt *int, statusIDs []int) (*response.BillingStatisticsResponse, error)
 	// Note: attachment file operations are handled on disk (not persisted to DB)
 }
@@ -359,11 +359,19 @@ func (r *billingRepository) GetBillingPenghuniAll() ([]*models.BillingPenghuniRe
 	return results, nil
 }
 
-// GetProfileBillingWithFilters retrieves profile billing data with optional filters
-func (r *billingRepository) GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int) ([]*response.ProfileBillingResponse, error) {
+// GetProfileBillingWithFilters retrieves profile billing data with optional filters and supports pagination
+func (r *billingRepository) GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int, page int, limit int) ([]*response.ProfileBillingResponse, int64, error) {
 	var results []*response.ProfileBillingResponse
 
-	query := r.db.Table("billings_profile_id_lnk bpil").
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	base := r.db.Table("billings_profile_id_lnk bpil").
 		Select("p.id, p.nama_penghuni, p.nama_pemilik, p.blok, p.rt").
 		Joins("JOIN billings b ON bpil.t_billing_id = b.id AND b.published_at IS NOT NULL").
 		Joins("JOIN billings_status_bill_lnk bsbl ON bpil.t_billing_id = bsbl.t_billing_id").
@@ -374,38 +382,52 @@ func (r *billingRepository) GetProfileBillingWithFilters(search string, bulan *i
 	// Apply search filter if provided (safe from SQL injection using parameterized query)
 	if search != "" {
 		searchPattern := "%" + search + "%"
-		query = query.Where("(p.nama_penghuni ILIKE ? OR p.nama_pemilik ILIKE ?)", searchPattern, searchPattern)
+		base = base.Where("(p.nama_penghuni ILIKE ? OR p.nama_pemilik ILIKE ?)", searchPattern, searchPattern)
 	}
 
 	// Apply optional filters
 	if bulan != nil {
-		query = query.Where("b.bulan = ?", *bulan)
+		base = base.Where("b.bulan = ?", *bulan)
 	}
 	if tahun != nil {
-		query = query.Where("b.tahun = ?", *tahun)
+		base = base.Where("b.tahun = ?", *tahun)
 	}
 	if rt != nil {
-		query = query.Where("p.rt = ?", *rt)
+		base = base.Where("p.rt = ?", *rt)
 	}
 	if statusID != nil {
-		query = query.Where("bsbl.master_general_status_id = ?", *statusID)
+		base = base.Where("bsbl.master_general_status_id = ?", *statusID)
 	}
 
-	query = query.Group("p.id, p.nama_penghuni, p.nama_pemilik, p.blok, p.rt")
-
-	err := query.Scan(&results).Error
-	if err != nil {
-		return nil, err
+	// Count total distinct profiles
+	countQuery := base.Session(&gorm.Session{}).Select("p.id").Group("p.id")
+	var total int64
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
 
-	return results, nil
+	// Fetch paginated data
+	query := base.Group("p.id, p.nama_penghuni, p.nama_pemilik, p.blok, p.rt").Order("p.id").Limit(limit).Offset(offset)
+	if err := query.Scan(&results).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return results, total, nil
 }
 
-// GetBillingByProfileID retrieves billing data by profile ID with optional filters
-func (r *billingRepository) GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int) ([]*response.BillingByProfileResponse, error) {
+// GetBillingByProfileID retrieves billing data by profile ID with optional filters and supports pagination
+func (r *billingRepository) GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int, page int, limit int) ([]*response.BillingByProfileResponse, int64, error) {
 	var results []*response.BillingByProfileResponse
 
-	query := r.db.Table("billings_profile_id_lnk bpil").
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	base := r.db.Table("billings_profile_id_lnk bpil").
 		Select("b.id, p.id as profile_id, b.nama_billing, b.bulan, b.tahun, b.nominal, mgs.id as status_id, mgs.status_name, b.keterangan").
 		Joins("JOIN billings b ON bpil.t_billing_id = b.id AND b.published_at IS NOT NULL").
 		Joins("JOIN billings_status_bill_lnk bsbl ON bpil.t_billing_id = bsbl.t_billing_id").
@@ -416,24 +438,32 @@ func (r *billingRepository) GetBillingByProfileID(profileID uint, bulan *int, ta
 
 	// Apply optional filters
 	if bulan != nil {
-		query = query.Where("b.bulan = ?", *bulan)
+		base = base.Where("b.bulan = ?", *bulan)
 	}
 	if tahun != nil {
-		query = query.Where("b.tahun = ?", *tahun)
+		base = base.Where("b.tahun = ?", *tahun)
 	}
 	if statusID != nil {
-		query = query.Where("bsbl.master_general_status_id = ?", *statusID)
+		base = base.Where("bsbl.master_general_status_id = ?", *statusID)
 	}
 	if rt != nil {
-		query = query.Where("p.rt = ?", *rt)
+		base = base.Where("p.rt = ?", *rt)
 	}
 
-	err := query.Scan(&results).Error
-	if err != nil {
-		return nil, err
+	// Count total matching rows
+	countQuery := base.Session(&gorm.Session{})
+	var total int64
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
 
-	return results, nil
+	// Fetch paginated data
+	query := base.Order("b.tahun DESC, b.bulan DESC").Limit(limit).Offset(offset)
+	if err := query.Scan(&results).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return results, total, nil
 }
 
 // GetBillingStatistics retrieves billing statistics with optional filters

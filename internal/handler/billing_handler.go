@@ -144,7 +144,7 @@ func (h *BulkBillingHandler) CreateBulkCustomBillings(c *gin.Context) {
 // @Produce json
 // @Param q query string false "Search by nama_penghuni or ID"
 // @Param page query int false "Page number" default(1)
-// @Param per_page query int false "Items per page" default(20)
+// @Param limit query int false "Items per page" default(10)
 // @Success 200 {object} utils.PaginatedResponse{data=[]models.BillingPenghuniResponse} "Billing penghuni retrieved successfully"
 // @Failure 500 {object} utils.APIResponse "Internal server error"
 // @Router /api/v1/billings/penghuni/search [get]
@@ -152,29 +152,29 @@ func (h *BulkBillingHandler) GetBillingPenghuniSearch(c *gin.Context) {
 	// read query params
 	q := c.Query("q")
 	page := 1
-	perPage := 20
+	limit := 10
 
 	if p := c.Query("page"); p != "" {
 		if v, err := strconv.Atoi(p); err == nil && v > 0 {
 			page = v
 		}
 	}
-	if pp := c.Query("per_page"); pp != "" {
-		if v, err := strconv.Atoi(pp); err == nil && v > 0 {
-			perPage = v
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
 		}
 	}
 
-	results, total, err := h.billingService.GetBillingPenghuni(q, page, perPage)
+	results, total, err := h.billingService.GetBillingPenghuni(q, page, limit)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get billing penghuni")
 		utils.InternalServerErrorResponse(c, "Failed to get billing penghuni", err)
 		return
 	}
 
-	h.logger.WithFields(map[string]interface{}{"count": len(results), "total": total, "page": page, "per_page": perPage}).Info("Billing penghuni retrieved successfully")
+	h.logger.WithFields(map[string]interface{}{"count": len(results), "total": total, "page": page, "limit": limit}).Info("Billing penghuni retrieved successfully")
 
-	utils.PaginatedSuccessResponse(c, "Billing penghuni retrieved successfully", results, page, perPage, total)
+	utils.PaginatedSuccessResponse(c, "Billing penghuni retrieved successfully", results, page, limit, total)
 }
 
 // GetBillingPenghuni retrieves all billing data for penghuni users (no params)
@@ -504,7 +504,7 @@ func (h *BulkBillingHandler) DownloadBillingAttachment(c *gin.Context) {
 
 // GetProfileBillingWithFilters retrieves profile billing data with optional filters
 // @Summary Get profile billing with optional filters
-// @Description Get profile billing data (id, nama_penghuni, nama_pemilik, blok, rt) with optional filters for search, bulan, tahun, rt, and status_id. Search parameter will filter by nama_penghuni or nama_pemilik using LIKE. Requires auth-token cookie.
+// @Description Get profile billing data (id, nama_penghuni, nama_pemilik, blok, rt) with optional filters for search, bulan, tahun, rt, and status_id. Search parameter will filter by nama_penghuni or nama_pemilik using LIKE. Supports pagination. Requires auth-token cookie.
 // @Tags billings
 // @Accept json
 // @Produce json
@@ -513,13 +513,17 @@ func (h *BulkBillingHandler) DownloadBillingAttachment(c *gin.Context) {
 // @Param tahun query int false "Filter by year"
 // @Param rt query int false "Filter by RT"
 // @Param status_id query int false "Filter by status ID"
-// @Success 200 {object} utils.APIResponse
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Items per page" default(10)
+// @Success 200 {object} utils.PaginatedResponse
 // @Failure 400 {object} utils.APIResponse
 // @Failure 500 {object} utils.APIResponse
 // @Router /api/v1/billings/profile [get]
 func (h *BulkBillingHandler) GetProfileBillingWithFilters(c *gin.Context) {
 	var bulan, tahun, rt, statusID *int
 	var search string
+	page := 1
+	limit := 10
 
 	// Parse optional query parameters
 	search = c.Query("search")
@@ -560,20 +564,32 @@ func (h *BulkBillingHandler) GetProfileBillingWithFilters(c *gin.Context) {
 		}
 	}
 
+	if p := c.Query("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			page = v
+		}
+	}
+
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+
 	// Call service to get data
-	results, err := h.billingService.GetProfileBillingWithFilters(search, bulan, tahun, rt, statusID)
+	results, total, err := h.billingService.GetProfileBillingWithFilters(search, bulan, tahun, rt, statusID, page, limit)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get profile billing with filters")
 		utils.InternalServerErrorResponse(c, "Failed to retrieve profile billing data", err)
 		return
 	}
 
-	utils.SuccessResponse(c, "Profile billing data retrieved successfully", results)
+	utils.PaginatedSuccessResponse(c, "Profile billing data retrieved successfully", results, page, limit, total)
 }
 
 // GetBillingByProfileID retrieves billing data by profile ID with optional filters
 // @Summary Get billing by profile ID with optional filters
-// @Description Get billing data (id, profile_id, nama_billing, bulan, tahun, status_id, status_name, keterangan) by profile ID with optional filters for bulan, tahun, status_id, and rt. Profile ID is required. Requires auth-token cookie.
+// @Description Get billing data (id, profile_id, nama_billing, bulan, tahun, status_id, status_name, keterangan) by profile ID with optional filters for bulan, tahun, status_id, and rt. Profile ID is required. Supports pagination. Requires auth-token cookie.
 // @Tags billings
 // @Accept json
 // @Produce json
@@ -582,7 +598,9 @@ func (h *BulkBillingHandler) GetProfileBillingWithFilters(c *gin.Context) {
 // @Param tahun query int false "Filter by year"
 // @Param status_id query int false "Filter by status ID"
 // @Param rt query int false "Filter by RT"
-// @Success 200 {object} utils.APIResponse
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Items per page" default(10)
+// @Success 200 {object} utils.PaginatedResponse
 // @Failure 400 {object} utils.APIResponse
 // @Failure 500 {object} utils.APIResponse
 // @Router /api/v1/billings/by-profile [get]
@@ -601,6 +619,8 @@ func (h *BulkBillingHandler) GetBillingByProfileID(c *gin.Context) {
 	}
 
 	var bulan, tahun, statusID, rt *int
+	page := 1
+	limit := 10
 
 	// Parse optional query parameters
 	if bulanStr := c.Query("bulan"); bulanStr != "" {
@@ -639,15 +659,27 @@ func (h *BulkBillingHandler) GetBillingByProfileID(c *gin.Context) {
 		}
 	}
 
+	if p := c.Query("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			page = v
+		}
+	}
+
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+
 	// Call service to get data
-	results, err := h.billingService.GetBillingByProfileID(uint(profileID), bulan, tahun, statusID, rt)
+	results, total, err := h.billingService.GetBillingByProfileID(uint(profileID), bulan, tahun, statusID, rt, page, limit)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get billing by profile ID")
 		utils.InternalServerErrorResponse(c, "Failed to retrieve billing data", err)
 		return
 	}
 
-	utils.SuccessResponse(c, "Billing data retrieved successfully", results)
+	utils.PaginatedSuccessResponse(c, "Billing data retrieved successfully", results, page, limit, total)
 }
 
 // GetBillingStatistics retrieves billing statistics with optional filters
