@@ -24,6 +24,7 @@ type BillingRepository interface {
 	GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int, page int, limit int) ([]*response.ProfileBillingResponse, int64, error)
 	GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int, page int, limit int) ([]*response.BillingByProfileResponse, int64, error)
 	GetBillingStatistics(search string, bulan *int, tahun *int, rt *int, statusIDs []int) (*response.BillingStatisticsResponse, error)
+	GetBillingForExport(bulan *int, tahun *int, statusID *int, rt *int) ([]*response.BillingExportResponse, error)
 	// Note: attachment file operations are handled on disk (not persisted to DB)
 }
 
@@ -509,6 +510,41 @@ func (r *billingRepository) GetBillingByProfileID(profileID uint, bulan *int, ta
 	}
 
 	return results, total, nil
+}
+
+// GetBillingForExport retrieves billing data for Excel export with optional filters (no pagination)
+func (r *billingRepository) GetBillingForExport(bulan *int, tahun *int, statusID *int, rt *int) ([]*response.BillingExportResponse, error) {
+	var results []*response.BillingExportResponse
+
+	base := r.db.Table("billings_profile_id_lnk bpil").
+		Select("p.blok, p.rt, p.nama_penghuni, p.nama_pemilik, b.nama_billing, b.bulan, b.tahun, b.nominal, mgs.id as status_id, mgs.status_name, b.keterangan").
+		Joins("JOIN billings b ON bpil.t_billing_id = b.id AND b.published_at IS NOT NULL").
+		Joins("JOIN billings_status_bill_lnk bsbl ON bpil.t_billing_id = bsbl.t_billing_id").
+		Joins("JOIN master_general_statuses mgs ON bsbl.master_general_status_id = mgs.id AND mgs.published_at IS NOT NULL").
+		Joins("JOIN up_users_profile_lnk uupl ON bpil.user_id = uupl.user_id").
+		Joins("JOIN profiles p ON uupl.profile_id = p.id AND p.published_at IS NOT NULL")
+
+	// Apply optional filters
+	if bulan != nil {
+		base = base.Where("b.bulan = ?", *bulan)
+	}
+	if tahun != nil {
+		base = base.Where("b.tahun = ?", *tahun)
+	}
+	if statusID != nil {
+		base = base.Where("bsbl.master_general_status_id = ?", *statusID)
+	}
+	if rt != nil {
+		base = base.Where("p.rt = ?", *rt)
+	}
+
+	// Fetch all data without pagination
+	query := base.Order("p.nama_penghuni ASC, b.tahun DESC, b.bulan DESC")
+	if err := query.Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 // GetBillingStatistics retrieves billing statistics with optional filters

@@ -154,7 +154,7 @@ const docTemplate = `{
         },
         "/api/v1/billings/by-profile": {
             "get": {
-                "description": "Get billing data (id, profile_id, nama_billing, bulan, tahun, status_id, status_name, keterangan) by profile ID with optional filters for bulan, tahun, status_id, and rt. Profile ID is required. Requires auth-token cookie.",
+                "description": "Get billing data (id, profile_id, nama_billing, bulan, tahun, status_id, status_name, keterangan) by profile ID with optional filters for bulan, tahun, status_id, and rt. Profile ID is required. Supports pagination. Requires auth-token cookie.",
                 "consumes": [
                     "application/json"
                 ],
@@ -196,13 +196,27 @@ const docTemplate = `{
                         "description": "Filter by RT",
                         "name": "rt",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIResponse"
+                            "$ref": "#/definitions/utils.PaginatedResponse"
                         }
                     },
                     "400": {
@@ -222,7 +236,7 @@ const docTemplate = `{
         },
         "/api/v1/billings/confirm-payment": {
             "post": {
-                "description": "Receive payment gateway webhook and process payment confirmation",
+                "description": "Receive Mayar payment gateway webhook and process payment confirmation",
                 "consumes": [
                     "application/json"
                 ],
@@ -232,15 +246,15 @@ const docTemplate = `{
                 "tags": [
                     "billings"
                 ],
-                "summary": "Confirm payment webhook",
+                "summary": "Confirm payment webhook (Mayar)",
                 "parameters": [
                     {
-                        "description": "Webhook payload",
+                        "description": "Mayar webhook payload",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.ConfirmPaymentWebhookRequest"
+                            "$ref": "#/definitions/handler.MayarWebhookRequest"
                         }
                     }
                 ],
@@ -299,6 +313,61 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/billings/export": {
+            "get": {
+                "description": "Export billing data to Excel file with optional filters (bulan, tahun, status_id, rt). Returns Excel file for download.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "tags": [
+                    "billings"
+                ],
+                "summary": "Export billing data to Excel",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Filter by month (1-12)",
+                        "name": "bulan",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by year (e.g., 2026)",
+                        "name": "tahun",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by status ID",
+                        "name": "status_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by RT",
+                        "name": "rt",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/utils.APIResponse"
                         }
@@ -379,9 +448,9 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "default": 20,
+                        "default": 10,
                         "description": "Items per page",
-                        "name": "per_page",
+                        "name": "limit",
                         "in": "query"
                     }
                 ],
@@ -418,7 +487,7 @@ const docTemplate = `{
         },
         "/api/v1/billings/profile": {
             "get": {
-                "description": "Get profile billing data (id, nama_penghuni, nama_pemilik, blok, rt) with optional filters for search, bulan, tahun, rt, and status_id. Search parameter will filter by nama_penghuni or nama_pemilik using LIKE. Requires auth-token cookie.",
+                "description": "Get profile billing data (id, nama_penghuni, nama_pemilik, blok, rt) with optional filters for search, bulan, tahun, rt, and status_id. Search parameter will filter by nama_penghuni or nama_pemilik using LIKE. Supports pagination. Requires auth-token cookie.",
                 "consumes": [
                     "application/json"
                 ],
@@ -459,13 +528,27 @@ const docTemplate = `{
                         "description": "Filter by status ID",
                         "name": "status_id",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIResponse"
+                            "$ref": "#/definitions/utils.PaginatedResponse"
                         }
                     },
                     "400": {
@@ -2033,44 +2116,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.ConfirmPaymentWebhookRequest": {
-            "type": "object",
-            "properties": {
-                "acquirer": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "additional_info": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "channel": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "order": {
-                    "type": "object",
-                    "properties": {
-                        "amount": {
-                            "type": "integer",
-                            "example": 175000
-                        },
-                        "invoice_number": {
-                            "type": "string",
-                            "example": "INV-1766570879-"
-                        }
-                    }
-                },
-                "service": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "transaction": {
-                    "type": "object",
-                    "additionalProperties": true
-                }
-            }
-        },
         "handler.CreatePaymentLinkMultipleRequest": {
             "type": "object",
             "required": [
@@ -2087,6 +2132,92 @@ const docTemplate = `{
                         6,
                         2
                     ]
+                }
+            }
+        },
+        "handler.MayarWebhookRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "amount": {
+                            "type": "integer"
+                        },
+                        "couponUsed": {},
+                        "createdAt": {
+                            "type": "string"
+                        },
+                        "customerEmail": {
+                            "type": "string"
+                        },
+                        "customerId": {
+                            "type": "string"
+                        },
+                        "customerMobile": {
+                            "type": "string"
+                        },
+                        "customerName": {
+                            "type": "string"
+                        },
+                        "id": {
+                            "type": "string"
+                        },
+                        "isAdminFeeBorneByCustomer": {},
+                        "isChannelFeeBorneByCustomer": {},
+                        "merchantEmail": {
+                            "type": "string"
+                        },
+                        "merchantId": {
+                            "type": "string"
+                        },
+                        "merchantName": {
+                            "type": "string"
+                        },
+                        "nettAmount": {
+                            "type": "integer"
+                        },
+                        "paymentLinkAmount": {
+                            "type": "integer"
+                        },
+                        "paymentMethod": {
+                            "type": "string"
+                        },
+                        "pixelFbc": {},
+                        "pixelFbp": {},
+                        "productDescription": {
+                            "type": "string",
+                            "example": "1372,67 (DocumentID: monthly-xxx)"
+                        },
+                        "productId": {
+                            "type": "string"
+                        },
+                        "productName": {
+                            "type": "string"
+                        },
+                        "productType": {
+                            "type": "string"
+                        },
+                        "qty": {
+                            "type": "integer"
+                        },
+                        "status": {
+                            "type": "string"
+                        },
+                        "transactionId": {
+                            "type": "string"
+                        },
+                        "transactionStatus": {
+                            "type": "string"
+                        },
+                        "updatedAt": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "event": {
+                    "type": "string",
+                    "example": "payment.received"
                 }
             }
         },
@@ -2587,6 +2718,9 @@ const docTemplate = `{
                     }
                 },
                 "description": {
+                    "type": "string"
+                },
+                "document_id": {
                     "type": "string"
                 },
                 "expired_at": {

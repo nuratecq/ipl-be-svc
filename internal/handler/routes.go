@@ -78,6 +78,8 @@ func SetupRoutes(
 			billings.GET("/by-profile", bulkBillingHandler.GetBillingByProfileID)
 			// Get billing statistics with optional filters
 			billings.GET("/statistics", bulkBillingHandler.GetBillingStatistics)
+			// Export billing to Excel
+			billings.GET("/export", bulkBillingHandler.ExportBillingToExcel)
 			// Billing attachments
 			billings.POST("/:id/attachments", bulkBillingHandler.UploadBillingAttachment)
 			billings.GET("/:id/attachments", bulkBillingHandler.ListBillingAttachments)
