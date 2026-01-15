@@ -758,3 +758,61 @@ func (h *BulkBillingHandler) GetBillingStatistics(c *gin.Context) {
 
 	utils.SuccessResponse(c, "Billing statistics retrieved successfully", result)
 }
+
+// ExportBillingToExcel exports billing data to Excel file
+// @Summary Export billing data to Excel
+// @Description Export billing data to Excel file with optional filters (bulan, tahun, status_id, rt). Returns Excel file for download.
+// @Tags billings
+// @Accept json
+// @Produce application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Param bulan query int false "Filter by month (1-12)"
+// @Param tahun query int false "Filter by year (e.g., 2026)"
+// @Param status_id query int false "Filter by status ID"
+// @Param rt query int false "Filter by RT"
+// @Success 200 {file} file "Excel file"
+// @Failure 500 {object} utils.APIResponse
+// @Router /api/v1/billings/export [get]
+func (h *BulkBillingHandler) ExportBillingToExcel(c *gin.Context) {
+	h.logger.Info("ExportBillingToExcel endpoint called")
+
+	// Parse optional query parameters
+	var bulan, tahun, statusID, rt *int
+
+	if bulanStr := c.Query("bulan"); bulanStr != "" {
+		if val, err := strconv.Atoi(bulanStr); err == nil {
+			bulan = &val
+		}
+	}
+	if tahunStr := c.Query("tahun"); tahunStr != "" {
+		if val, err := strconv.Atoi(tahunStr); err == nil {
+			tahun = &val
+		}
+	}
+	if statusIDStr := c.Query("status_id"); statusIDStr != "" {
+		if val, err := strconv.Atoi(statusIDStr); err == nil {
+			statusID = &val
+		}
+	}
+	if rtStr := c.Query("rt"); rtStr != "" {
+		if val, err := strconv.Atoi(rtStr); err == nil {
+			rt = &val
+		}
+	}
+
+	// Call service to export data
+	fileBytes, filename, err := h.billingService.ExportBillingToExcel(bulan, tahun, statusID, rt)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to export billing to Excel")
+		utils.InternalServerErrorResponse(c, "Failed to export billing data", err)
+		return
+	}
+
+	// Set headers for file download
+	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Header("Content-Length", fmt.Sprintf("%d", len(fileBytes)))
+
+	// Write file bytes to response
+	c.Data(200, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileBytes)
+}
+

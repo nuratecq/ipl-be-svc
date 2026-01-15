@@ -11,6 +11,7 @@ import (
 	"ipl-be-svc/internal/repository"
 
 	"github.com/google/uuid"
+	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 )
 
@@ -26,6 +27,7 @@ type BillingService interface {
 	GetProfileBillingWithFilters(search string, bulan *int, tahun *int, rt *int, statusID *int, page int, limit int) ([]*response.ProfileBillingResponse, int64, error)
 	GetBillingByProfileID(profileID uint, bulan *int, tahun *int, statusID *int, rt *int, page int, limit int) ([]*response.BillingByProfileResponse, int64, error)
 	GetBillingStatistics(search string, bulan *int, tahun *int, rt *int, statusIDs []int) (*response.BillingStatisticsResponse, error)
+	ExportBillingToExcel(bulan *int, tahun *int, statusID *int, rt *int) ([]byte, string, error)
 	// Attachments
 	UploadBillingAttachment(billingID uint, filename string, content []byte) (*models.BillingAttachment, error)
 	GetBillingAttachments(billingID uint) ([]*models.BillingAttachment, error)
@@ -93,7 +95,7 @@ func (s *billingService) CreateBulkMonthlyBillings(userIDs []uint, month int, ye
 		}
 	} else {
 		// Get all penghuni users
-		users, err = s.billingRepo.GetUsersWithPenghuniRole()
+		users, err = s.billingRepo.GetUsersWithPenghuniRoleWithoutBilling(month, year)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get penghuni users: %w", err)
 		}
@@ -265,7 +267,7 @@ func (s *billingService) CreateBulkCustomBillings(userIDs []uint, billingSetting
 		}
 	} else {
 		// Get all penghuni users
-		users, err = s.billingRepo.GetUsersWithPenghuniRole()
+		users, err = s.billingRepo.GetUsersWithPenghuniRoleWithoutBilling(month, year)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get penghuni users: %w", err)
 		}
@@ -564,4 +566,111 @@ func (s *billingService) GetBillingByProfileID(profileID uint, bulan *int, tahun
 // GetBillingStatistics retrieves billing statistics with optional filters
 func (s *billingService) GetBillingStatistics(search string, bulan *int, tahun *int, rt *int, statusIDs []int) (*response.BillingStatisticsResponse, error) {
 	return s.billingRepo.GetBillingStatistics(search, bulan, tahun, rt, statusIDs)
+}
+
+// ExportBillingToExcel exports billing data to Excel file
+func (s *billingService) ExportBillingToExcel(bulan *int, tahun *int, statusID *int, rt *int) ([]byte, string, error) {
+	// Get billing data from repository
+	billings, err := s.billingRepo.GetBillingForExport(bulan, tahun, statusID, rt)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get billing data: %w", err)
+	}
+
+	// Create a new Excel file
+	f := excelize.NewFile()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Printf("Error closing Excel file: %v\n", err)
+		}
+	}()
+
+	sheetName := "Billing Data"
+	index, err := f.NewSheet(sheetName)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create sheet: %w", err)
+	}
+
+	// Set active sheet
+	f.SetActiveSheet(index)
+
+	// Define headers
+	headers := []string{"No", "Blok", "RT", "Nama Penghuni", "Nama Pemilik", "Nama Billing", "Bulan", "Tahun", "Nominal", "Status", "Keterangan"}
+
+	// Write headers
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue(sheetName, cell, header)
+	}
+
+	// Style for headers
+	headerStyle, err := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Bold: true,
+		},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Color:   []string{"#D3D3D3"},
+			Pattern: 1,
+		},
+		Alignment: &excelize.Alignment{
+			Horizontal: "center",
+			Vertical:   "center",
+		},
+	})
+	if err == nil {
+		f.SetCellStyle(sheetName, "A1", "K1", headerStyle)
+	}
+
+	// Month names mapping
+	monthNames := map[int]string{
+		1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
+		5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
+		9: "September", 10: "Oktober", 11: "November", 12: "Desember",
+	}
+
+	// Write data
+	for i, billing := range billings {
+		row := i + 2
+
+		// Get month name
+		monthName := fmt.Sprintf("%d", billing.Bulan)
+		if name, ok := monthNames[billing.Bulan]; ok {
+			monthName = name
+		}
+
+		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), i+1)
+		f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), billing.Blok)
+		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), billing.RT)
+		f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), billing.NamaPenghuni)
+		f.SetCellValue(sheetName, fmt.Sprintf("E%d", row), billing.NamaPemilik)
+		f.SetCellValue(sheetName, fmt.Sprintf("F%d", row), billing.NamaBilling)
+		f.SetCellValue(sheetName, fmt.Sprintf("G%d", row), monthName)
+		f.SetCellValue(sheetName, fmt.Sprintf("H%d", row), billing.Tahun)
+		f.SetCellValue(sheetName, fmt.Sprintf("I%d", row), billing.Nominal)
+		f.SetCellValue(sheetName, fmt.Sprintf("J%d", row), billing.StatusName)
+		f.SetCellValue(sheetName, fmt.Sprintf("K%d", row), billing.Keterangan)
+	}
+
+	// Auto-fit columns
+	for i := 1; i <= len(headers); i++ {
+		col, _ := excelize.ColumnNumberToName(i)
+		f.SetColWidth(sheetName, col, col, 15)
+	}
+
+	// Delete default Sheet1 if it exists
+	if f.GetSheetName(0) == "Sheet1" && sheetName != "Sheet1" {
+		f.DeleteSheet("Sheet1")
+	}
+
+	// Generate filename with timestamp
+	timestamp := time.Now().Format("20060102_150405")
+	filename := fmt.Sprintf("billing_export_%s.xlsx", timestamp)
+
+	// Save to buffer
+	buffer, err := f.WriteToBuffer()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to write Excel file: %w", err)
+	}
+
+	return buffer.Bytes(), filename, nil
 }

@@ -54,33 +54,6 @@ definitions:
     required:
     - billing_id
     type: object
-  handler.ConfirmPaymentWebhookRequest:
-    properties:
-      acquirer:
-        additionalProperties: true
-        type: object
-      additional_info:
-        additionalProperties: true
-        type: object
-      channel:
-        additionalProperties: true
-        type: object
-      order:
-        properties:
-          amount:
-            example: 175000
-            type: integer
-          invoice_number:
-            example: INV-1766570879-
-            type: string
-        type: object
-      service:
-        additionalProperties: true
-        type: object
-      transaction:
-        additionalProperties: true
-        type: object
-    type: object
   handler.CreatePaymentLinkMultipleRequest:
     properties:
       billing_ids:
@@ -93,6 +66,65 @@ definitions:
         type: array
     required:
     - billing_ids
+    type: object
+  handler.MayarWebhookRequest:
+    properties:
+      data:
+        properties:
+          amount:
+            type: integer
+          couponUsed: {}
+          createdAt:
+            type: string
+          customerEmail:
+            type: string
+          customerId:
+            type: string
+          customerMobile:
+            type: string
+          customerName:
+            type: string
+          id:
+            type: string
+          isAdminFeeBorneByCustomer: {}
+          isChannelFeeBorneByCustomer: {}
+          merchantEmail:
+            type: string
+          merchantId:
+            type: string
+          merchantName:
+            type: string
+          nettAmount:
+            type: integer
+          paymentLinkAmount:
+            type: integer
+          paymentMethod:
+            type: string
+          pixelFbc: {}
+          pixelFbp: {}
+          productDescription:
+            example: '1372,67 (DocumentID: monthly-xxx)'
+            type: string
+          productId:
+            type: string
+          productName:
+            type: string
+          productType:
+            type: string
+          qty:
+            type: integer
+          status:
+            type: string
+          transactionId:
+            type: string
+          transactionStatus:
+            type: string
+          updatedAt:
+            type: string
+        type: object
+      event:
+        example: payment.received
+        type: string
     type: object
   handler.UserDetailResponse:
     properties:
@@ -450,6 +482,8 @@ definitions:
         type: array
       description:
         type: string
+      document_id:
+        type: string
       expired_at:
         type: integer
       invoice_id:
@@ -720,7 +754,8 @@ paths:
       - application/json
       description: Get billing data (id, profile_id, nama_billing, bulan, tahun, status_id,
         status_name, keterangan) by profile ID with optional filters for bulan, tahun,
-        status_id, and rt. Profile ID is required. Requires auth-token cookie.
+        status_id, and rt. Profile ID is required. Supports pagination. Requires auth-token
+        cookie.
       parameters:
       - description: Profile ID (required)
         in: query
@@ -743,13 +778,23 @@ paths:
         in: query
         name: rt
         type: integer
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.APIResponse'
+            $ref: '#/definitions/utils.PaginatedResponse'
         "400":
           description: Bad Request
           schema:
@@ -765,14 +810,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: Receive payment gateway webhook and process payment confirmation
+      description: Receive Mayar payment gateway webhook and process payment confirmation
       parameters:
-      - description: Webhook payload
+      - description: Mayar webhook payload
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.ConfirmPaymentWebhookRequest'
+          $ref: '#/definitions/handler.MayarWebhookRequest'
       produces:
       - application/json
       responses:
@@ -784,7 +829,7 @@ paths:
           description: Invalid payload
           schema:
             $ref: '#/definitions/utils.APIResponse'
-      summary: Confirm payment webhook
+      summary: Confirm payment webhook (Mayar)
       tags:
       - billings
   /api/v1/billings/confirm-single:
@@ -815,6 +860,43 @@ paths:
           schema:
             $ref: '#/definitions/utils.APIResponse'
       summary: Confirm single billing payment
+      tags:
+      - billings
+  /api/v1/billings/export:
+    get:
+      consumes:
+      - application/json
+      description: Export billing data to Excel file with optional filters (bulan,
+        tahun, status_id, rt). Returns Excel file for download.
+      parameters:
+      - description: Filter by month (1-12)
+        in: query
+        name: bulan
+        type: integer
+      - description: Filter by year (e.g., 2026)
+        in: query
+        name: tahun
+        type: integer
+      - description: Filter by status ID
+        in: query
+        name: status_id
+        type: integer
+      - description: Filter by RT
+        in: query
+        name: rt
+        type: integer
+      produces:
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      responses:
+        "200":
+          description: Excel file
+          schema:
+            type: file
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.APIResponse'
+      summary: Export billing data to Excel
       tags:
       - billings
   /api/v1/billings/penghuni:
@@ -859,10 +941,10 @@ paths:
         in: query
         name: page
         type: integer
-      - default: 20
+      - default: 10
         description: Items per page
         in: query
-        name: per_page
+        name: limit
         type: integer
       produces:
       - application/json
@@ -891,8 +973,8 @@ paths:
       - application/json
       description: Get profile billing data (id, nama_penghuni, nama_pemilik, blok,
         rt) with optional filters for search, bulan, tahun, rt, and status_id. Search
-        parameter will filter by nama_penghuni or nama_pemilik using LIKE. Requires
-        auth-token cookie.
+        parameter will filter by nama_penghuni or nama_pemilik using LIKE. Supports
+        pagination. Requires auth-token cookie.
       parameters:
       - description: Search by nama_penghuni or nama_pemilik (case-insensitive LIKE)
         in: query
@@ -914,13 +996,23 @@ paths:
         in: query
         name: status_id
         type: integer
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.APIResponse'
+            $ref: '#/definitions/utils.PaginatedResponse'
         "400":
           description: Bad Request
           schema:

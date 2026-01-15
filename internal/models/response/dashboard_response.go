@@ -46,3 +46,18 @@ type BillingStatisticsResponse struct {
 	TotalBelumDibayar int64 `json:"total_belum_dibayar" example:"3"`
 	TotalNominal      int64 `json:"total_nominal" example:"1000000"`
 }
+
+// BillingExportResponse represents billing data for Excel export
+type BillingExportResponse struct {
+	Blok         string `json:"blok" example:"A1"`
+	RT           int    `json:"rt" example:"5"`
+	NamaPenghuni string `json:"nama_penghuni" example:"John Doe"`
+	NamaPemilik  string `json:"nama_pemilik" example:"Jane Doe"`
+	NamaBilling  string `json:"nama_billing" example:"Iuran Bulanan"`
+	Bulan        int    `json:"bulan" example:"1"`
+	Tahun        int    `json:"tahun" example:"2026"`
+	Nominal      int    `json:"nominal" example:"100000"`
+	StatusID     uint   `json:"status_id" example:"2"`
+	StatusName   string `json:"status_name" example:"Belum Dibayar"`
+	Keterangan   string `json:"keterangan" example:"Iuran wajib bulanan"`
+}
