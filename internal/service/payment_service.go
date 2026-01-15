@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"ipl-be-svc/internal/models"
 	"ipl-be-svc/internal/repository"
 	"ipl-be-svc/pkg/logger"
 )
@@ -52,7 +53,7 @@ type MayarCreateInvoiceResponse struct {
 
 // MayarService defines the interface for Mayar payment operations
 type MayarService interface {
-	CreatePaymentLink(amount int64, billingIDsStr string, documentIDs string, humanDescription string, customerName string, customerEmail string, customerPhone string) (string, error)
+	CreatePaymentLink(billings []*models.Billing, billingIDsStr string, documentIDs string) (string, error)
 	CreateInvoice(req *MayarCreateInvoiceRequest) (*MayarCreateInvoiceResponse, error)
 }
 
@@ -107,12 +108,7 @@ func (s *paymentService) CreatePaymentLink(billingID uint) (*PaymentLinkResponse
 		return nil, fmt.Errorf("invalid billing nominal")
 	}
 
-	// Use default customer information
-	userName := "Penghuni IPL"
-	userEmail := "billing@ipl.com"
-	userPhone := "08123456789"
-
-	// Create billing IDs string for webhook parsing (just the ID)
+	// Create billing IDs string for webhook parsing
 	billingIDsStr := fmt.Sprintf("%d", billingID)
 
 	// Get document ID
@@ -121,14 +117,11 @@ func (s *paymentService) CreatePaymentLink(billingID uint) (*PaymentLinkResponse
 		documentID = *billing.DocumentID
 	}
 
-	// Create human-readable description
-	humanDescription := fmt.Sprintf("Payment for Billing ID %d", billingID)
-	if billing.Bulan != nil && billing.Tahun != nil {
-		humanDescription = fmt.Sprintf("Payment for %d/%d - Billing ID %d", *billing.Bulan, *billing.Tahun, billingID)
-	}
+	// Create billings slice for payment link
+	billings := []*models.Billing{billing}
 
 	// Create Mayar payment link
-	paymentURL, err := s.mayarService.CreatePaymentLink(*billing.Nominal, billingIDsStr, documentID, humanDescription, userName, userEmail, userPhone)
+	paymentURL, err := s.mayarService.CreatePaymentLink(billings, billingIDsStr, documentID)
 	if err != nil {
 		s.logger.WithError(err).WithField("billing_id", billingID).Error("Failed to create Mayar payment link")
 		return nil, fmt.Errorf("failed to create payment link: %w", err)
@@ -139,7 +132,7 @@ func (s *paymentService) CreatePaymentLink(billingID uint) (*PaymentLinkResponse
 		Amount:      *billing.Nominal,
 		PaymentURL:  paymentURL,
 		DocumentID:  documentID,
-		Description: humanDescription,
+		Description: fmt.Sprintf("Payment for %d billings", len(billings)),
 	}, nil
 }
 
@@ -149,35 +142,34 @@ func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentL
 		return nil, fmt.Errorf("billing IDs cannot be empty")
 	}
 
+	// Get all billings using WHERE IN (optimized query)
+	billings, err := s.billingRepo.GetBillingsByIDs(billingIDs)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get billing records")
+		return nil, fmt.Errorf("failed to get billing records: %w", err)
+	}
+
+	if len(billings) == 0 {
+		return nil, fmt.Errorf("no billing records found")
+	}
+
+	// Validate and collect document IDs
 	var totalAmount int64 = 0
-	var listBillingIDs []uint
 	var listDocumentIDs []string
 
-	for _, billingID := range billingIDs {
-		// Get billing record
-		billing, err := s.billingRepo.GetBillingByID(billingID)
-		if err != nil {
-			s.logger.WithError(err).WithField("billing_id", billingID).Error("Failed to get billing record")
-			return nil, fmt.Errorf("billing record not found for ID %d: %w", billingID, err)
-		}
-
+	for _, billing := range billings {
 		// Validate nominal exists
 		if billing.Nominal == nil || *billing.Nominal <= 0 {
-			s.logger.WithField("billing_id", billingID).Error("Invalid billing nominal")
-			return nil, fmt.Errorf("invalid billing nominal for ID %d", billingID)
+			s.logger.WithField("billing_id", billing.ID).Error("Invalid billing nominal")
+			return nil, fmt.Errorf("invalid billing nominal for ID %d", billing.ID)
 		}
 
 		totalAmount += *billing.Nominal
-		listBillingIDs = append(listBillingIDs, billingID)
+
 		if billing.DocumentID != nil {
 			listDocumentIDs = append(listDocumentIDs, *billing.DocumentID)
 		}
 	}
-
-	// Use default customer information
-	userName := "Penghuni IPL"
-	userEmail := "billing@ipl.com"
-	userPhone := "08123456789"
 
 	// Create billing IDs string for webhook parsing (comma-separated)
 	billingIDsStr := strings.Join(func() []string {
@@ -191,11 +183,8 @@ func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentL
 	// Create document IDs string
 	documentIDsStr := strings.Join(listDocumentIDs, ", ")
 
-	// Create human-readable description
-	humanDescription := fmt.Sprintf("Payment for %d billings", len(billingIDs))
-
 	// Create Mayar payment link
-	paymentURL, err := s.mayarService.CreatePaymentLink(totalAmount, billingIDsStr, documentIDsStr, humanDescription, userName, userEmail, userPhone)
+	paymentURL, err := s.mayarService.CreatePaymentLink(billings, billingIDsStr, documentIDsStr)
 	if err != nil {
 		s.logger.WithError(err).WithField("billing_ids", billingIDs).Error("Failed to create Mayar payment link")
 		return nil, fmt.Errorf("failed to create payment link: %w", err)
@@ -205,18 +194,19 @@ func (s *paymentService) CreatePaymentLinkMultiple(billingIDs []uint) (*PaymentL
 		BillingIDs:  billingIDs,
 		Amount:      totalAmount,
 		PaymentURL:  paymentURL,
-		Description: humanDescription,
+		Description: fmt.Sprintf("Payment for %d billings", len(billingIDs)),
 	}, nil
 }
 
 // mayarService implements MayarService
 type mayarService struct {
-	logger *logger.Logger
-	config MayarConfig
+	paymentConfigRepo repository.PaymentConfigRepository
+	logger            *logger.Logger
+	config            MayarConfig
 }
 
 // NewMayarService creates a new instance of MayarService
-func NewMayarService(logger *logger.Logger) MayarService {
+func NewMayarService(paymentConfigRepo repository.PaymentConfigRepository, logger *logger.Logger) MayarService {
 	config := MayarConfig{
 		AuthKey: os.Getenv("MAYAR_AUTH_KEY"),
 		BaseURL: os.Getenv("MAYAR_BASE_URL"),
@@ -227,8 +217,9 @@ func NewMayarService(logger *logger.Logger) MayarService {
 	}
 
 	return &mayarService{
-		logger: logger,
-		config: config,
+		paymentConfigRepo: paymentConfigRepo,
+		logger:            logger,
+		config:            config,
 	}
 }
 
@@ -304,17 +295,77 @@ func (m *mayarService) CreateInvoice(req *MayarCreateInvoiceRequest) (*MayarCrea
 // CreatePaymentLink creates a payment link using Mayar service
 // billingIDsStr: comma-separated billing IDs (e.g., "1372,67" or "1372")
 // documentIDs: comma-separated document IDs for reference
-// humanDescription: human-readable description for display
-func (m *mayarService) CreatePaymentLink(amount int64, billingIDsStr string, documentIDs string, humanDescription string, customerName string, customerEmail string, customerPhone string) (string, error) {
+func (m *mayarService) CreatePaymentLink(billings []*models.Billing, billingIDsStr string, documentIDs string) (string, error) {
+	// Get payment config from database
+	paymentConfig, err := m.paymentConfigRepo.GetActivePaymentConfig()
+	if err != nil {
+		m.logger.WithError(err).Error("Failed to get payment config")
+		return "", fmt.Errorf("failed to get payment config: %w", err)
+	}
+
+	// Use customer information from payment config
+	userName := "Admin"
+	if paymentConfig.AdminName != nil {
+		userName = *paymentConfig.AdminName
+	}
+	userEmail := "admin@mail.com"
+	if paymentConfig.AdminEmail != nil {
+		userEmail = *paymentConfig.AdminEmail
+	}
+	userPhone := "-"
+	if paymentConfig.AdminPhone != nil {
+		userPhone = *paymentConfig.AdminPhone
+	}
+
+	// Calculate admin fee based on unique months
+	monthsMap := make(map[string]bool)
+	for _, billing := range billings {
+		if billing.Bulan != nil && billing.Tahun != nil {
+			monthKey := fmt.Sprintf("%d-%d", *billing.Tahun, *billing.Bulan)
+			monthsMap[monthKey] = true
+		}
+	}
+
+	totalMonths := len(monthsMap)
+	basePaymentFee := int64(0)
+	if paymentConfig.PaymentFee != nil {
+		basePaymentFee = *paymentConfig.PaymentFee
+	}
+
+	// Calculate admin fee with optimized logic
+	var adminFee int64
+	isFixedFee := paymentConfig.IsFixedFee != nil && *paymentConfig.IsFixedFee
+
+	if isFixedFee {
+		// Fixed Fee mode: use base fee directly
+		adminFee = basePaymentFee
+	} else {
+		// Non-fixed Fee mode: calculate based on months
+		// Get discount threshold (default 6 months)
+		minMonths := 6
+		if paymentConfig.MinMonthDiscount != nil {
+			minMonths = *paymentConfig.MinMonthDiscount
+		}
+
+		if totalMonths < minMonths {
+			// If less than 6 months, multiply months by payment fee
+			adminFee = int64(totalMonths) * basePaymentFee
+		} else {
+			// If paying for 6+ months, use fixed discount amount (default 20000)
+			if paymentConfig.MaxFee != nil {
+				adminFee = *paymentConfig.MaxFee
+			} else {
+				adminFee = int64(totalMonths) * basePaymentFee
+			}
+		}
+	}
+
 	m.logger.WithFields(map[string]interface{}{
-		"amount":            amount,
-		"billing_ids":       billingIDsStr,
-		"document_ids":      documentIDs,
-		"human_description": humanDescription,
-		"customer_name":     customerName,
-		"customer_email":    customerEmail,
-		"customer_phone":    customerPhone,
-	}).Info("Creating Mayar payment link")
+		"total_months":     totalMonths,
+		"base_payment_fee": basePaymentFee,
+		"is_fixed_fee":     isFixedFee,
+		"calculated_fee":   adminFee,
+	}).Info("Calculated admin fee based on payment config")
 
 	// Validate auth key
 	if m.config.AuthKey == "" {
@@ -324,8 +375,7 @@ func (m *mayarService) CreatePaymentLink(amount int64, billingIDsStr string, doc
 	// Set expiration to 30 days from now
 	expiredAt := time.Now().Add(30 * 24 * time.Hour).Format(time.RFC3339)
 
-	// Format product description: "<billing_ids> (DocumentID: <document_ids>)"
-	// This format is required for webhook parsing
+	// Format product description for webhook parsing
 	productDescription := billingIDsStr
 	if documentIDs != "" {
 		productDescription = fmt.Sprintf("%s (DocumentID: %s)", billingIDsStr, documentIDs)
@@ -333,29 +383,54 @@ func (m *mayarService) CreatePaymentLink(amount int64, billingIDsStr string, doc
 		productDescription = fmt.Sprintf("%s (DocumentID: N/A)", billingIDsStr)
 	}
 
-	// Create invoice request
-	invoiceReq := &MayarCreateInvoiceRequest{
-		Name:        customerName,
-		Email:       customerEmail,
-		Mobile:      customerPhone,
-		RedirectURL: "https://web.mayar.id",
-		Description: productDescription, // This will be in webhook's productDescription field
-		ExpiredAt:   expiredAt,
-		Items: []MayarItem{
-			{
-				Quantity:    1,
-				Rate:        amount,
-				Description: humanDescription,
-			},
-			{
-				Quantity:    1,
-				Rate:        5000, // Fixed admin fee
-				Description: "Admin Fee",
-			},
-		},
+	// Create detailed items for each billing
+	items := make([]MayarItem, 0, len(billings)+1)
+	for _, billing := range billings {
+		if billing.Nominal == nil {
+			continue
+		}
+
+		// Create description for billing item
+		desc := fmt.Sprintf("Billing ID %d", billing.DocumentID)
+		if billing.NamaBilling != nil {
+			desc = *billing.NamaBilling
+		}
+		if billing.Bulan != nil && billing.Tahun != nil {
+			desc = fmt.Sprintf("%s - %d/%d", desc, *billing.Bulan, *billing.Tahun)
+		}
+
+		items = append(items, MayarItem{
+			Quantity:    1,
+			Rate:        *billing.Nominal,
+			Description: desc,
+		})
 	}
 
-	m.logger.WithField("product_description", productDescription).Info("Product description for webhook parsing")
+	// Add admin fee as separate item
+	items = append(items, MayarItem{
+		Quantity:    1,
+		Rate:        adminFee,
+		Description: "Admin Fee",
+	})
+
+	// Create invoice request
+	invoiceReq := &MayarCreateInvoiceRequest{
+		Name:        userName,
+		Email:       userEmail,
+		Mobile:      userPhone,
+		RedirectURL: "https://web.mayar.id",
+		Description: productDescription,
+		ExpiredAt:   expiredAt,
+		Items:       items,
+	}
+
+	m.logger.WithFields(map[string]interface{}{
+		"billing_ids":         billingIDsStr,
+		"document_ids":        documentIDs,
+		"product_description": productDescription,
+		"total_items":         len(items),
+		"admin_fee":           adminFee,
+	}).Info("Creating Mayar payment link")
 
 	// Create invoice
 	result, err := m.CreateInvoice(invoiceReq)
@@ -371,7 +446,6 @@ func (m *mayarService) CreatePaymentLink(amount int64, billingIDsStr string, doc
 	}
 
 	m.logger.WithFields(map[string]interface{}{
-		"amount":              amount,
 		"billing_ids":         billingIDsStr,
 		"document_ids":        documentIDs,
 		"product_description": productDescription,

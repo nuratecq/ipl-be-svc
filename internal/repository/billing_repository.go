@@ -12,6 +12,7 @@ import (
 // BillingRepository defines the interface for billing data operations
 type BillingRepository interface {
 	GetBillingByID(id uint) (*models.Billing, error)
+	GetBillingsByIDs(ids []uint) ([]*models.Billing, error)
 	GetBillingSettingsByID(id uint) (*models.SettingBilling, error)
 	GetUsersWithPenghuniRole() ([]*models.User, error)
 	GetUsersWithPenghuniRoleWithoutBilling(bulan int, tahun int) ([]*models.User, error)
@@ -48,6 +49,22 @@ func (r *billingRepository) GetBillingByID(id uint) (*models.Billing, error) {
 	}
 
 	return &billing, nil
+}
+
+// GetBillingsByIDs retrieves multiple billing records by IDs using WHERE IN
+func (r *billingRepository) GetBillingsByIDs(ids []uint) ([]*models.Billing, error) {
+	var billings []*models.Billing
+
+	if len(ids) == 0 {
+		return billings, nil
+	}
+
+	err := r.db.Where("id IN ?", ids).Find(&billings).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return billings, nil
 }
 
 // GetBillingSettingsByID retrieves a billing setting record by ID

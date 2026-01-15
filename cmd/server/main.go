@@ -81,10 +81,11 @@ func main() {
 	roleMenuRepo := repository.NewRoleMenuRepository(db.DB)
 	dashboardRepo := repository.NewDashboardRepository(db.DB)
 	logSchedulerRepo := repository.NewLogSchedulerRepository(db.DB)
+	paymentConfigRepo := repository.NewPaymentConfigRepository(db.DB)
 
 	// Initialize services
 	menuService := service.NewMenuService(menuRepo)
-	mayarService := service.NewMayarService(appLogger)
+	mayarService := service.NewMayarService(paymentConfigRepo, appLogger)
 	paymentService := service.NewPaymentService(billingRepo, mayarService, appLogger)
 	userService := service.NewUserService(userRepo, appLogger)
 	billingService := service.NewBillingService(billingRepo, db.DB)
