@@ -93,7 +93,7 @@ func (s *billingService) CreateBulkMonthlyBillings(userIDs []uint, month int, ye
 		}
 	} else {
 		// Get all penghuni users
-		users, err = s.billingRepo.GetUsersWithPenghuniRole()
+		users, err = s.billingRepo.GetUsersWithPenghuniRoleWithoutBilling(month, year)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get penghuni users: %w", err)
 		}
@@ -265,7 +265,7 @@ func (s *billingService) CreateBulkCustomBillings(userIDs []uint, billingSetting
 		}
 	} else {
 		// Get all penghuni users
-		users, err = s.billingRepo.GetUsersWithPenghuniRole()
+		users, err = s.billingRepo.GetUsersWithPenghuniRoleWithoutBilling(month, year)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get penghuni users: %w", err)
 		}

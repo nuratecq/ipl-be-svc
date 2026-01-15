@@ -14,6 +14,7 @@ type BillingRepository interface {
 	GetBillingByID(id uint) (*models.Billing, error)
 	GetBillingSettingsByID(id uint) (*models.SettingBilling, error)
 	GetUsersWithPenghuniRole() ([]*models.User, error)
+	GetUsersWithPenghuniRoleWithoutBilling(bulan int, tahun int) ([]*models.User, error)
 	GetActiveMonthlySettingBillings() ([]*models.SettingBilling, error)
 	CreateBulkBillings(billings []*models.Billing) error
 	CreateBulkBillingProfileLinks(links []*models.BillingProfileLink) error
@@ -71,6 +72,33 @@ func (r *billingRepository) GetUsersWithPenghuniRole() ([]*models.User, error) {
 		Where("r.type = ?", "penghuni").
 		Find(&users).Error
 
+	if err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+// GetUsersWithPenghuniRoleWithoutBilling retrieves users with role "penghuni" who don't have billing for specified month and year
+func (r *billingRepository) GetUsersWithPenghuniRoleWithoutBilling(bulan int, tahun int) ([]*models.User, error) {
+	var users []*models.User
+
+	query := `
+		SELECT uu.*
+		FROM up_users uu
+		JOIN up_users_role_lnk uurl ON uu.id = uurl.user_id
+		JOIN up_roles ur ON uurl.role_id = ur.id
+		WHERE ur.type = 'penghuni'
+		AND uu.id NOT IN (
+			SELECT bpil.user_id
+			FROM billings b
+			JOIN billings_profile_id_lnk bpil ON bpil.t_billing_id = b.id
+			WHERE b.bulan = ? AND b.tahun = ?
+		)
+		ORDER BY uu.id
+	`
+
+	err := r.db.Raw(query, bulan, tahun).Scan(&users).Error
 	if err != nil {
 		return nil, err
 	}

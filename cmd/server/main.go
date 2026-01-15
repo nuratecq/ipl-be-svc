@@ -18,6 +18,7 @@ import (
 	"ipl-be-svc/internal/handler"
 	"ipl-be-svc/internal/middleware"
 	"ipl-be-svc/internal/repository"
+	"ipl-be-svc/internal/scheduler"
 	"ipl-be-svc/internal/service"
 	"ipl-be-svc/pkg/logger"
 )
@@ -79,6 +80,7 @@ func main() {
 	masterMenuRepo := repository.NewMasterMenuRepository(db.DB)
 	roleMenuRepo := repository.NewRoleMenuRepository(db.DB)
 	dashboardRepo := repository.NewDashboardRepository(db.DB)
+	logSchedulerRepo := repository.NewLogSchedulerRepository(db.DB)
 
 	// Initialize services
 	menuService := service.NewMenuService(menuRepo)
@@ -89,6 +91,13 @@ func main() {
 	masterMenuService := service.NewMasterMenuService(masterMenuRepo, appLogger)
 	roleMenuService := service.NewRoleMenuService(roleMenuRepo, masterMenuRepo, appLogger)
 	dashboardService := service.NewDashboardService(dashboardRepo, appLogger)
+
+	// Initialize and start billing scheduler
+	billingScheduler := scheduler.NewBillingScheduler(billingService, logSchedulerRepo, appLogger, cfg.Scheduler.BillingCronExpression)
+	if err := billingScheduler.Start(); err != nil {
+		appLogger.WithField("error", err).Fatal("Failed to start billing scheduler")
+	}
+	appLogger.Info("Billing scheduler initialized successfully")
 
 	// Initialize Gin router
 	router := gin.New()
@@ -126,6 +135,9 @@ func main() {
 	<-quit
 
 	appLogger.Info("Shutting down server...")
+
+	// Stop billing scheduler
+	billingScheduler.Stop()
 
 	// Give outstanding requests a deadline for completion
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

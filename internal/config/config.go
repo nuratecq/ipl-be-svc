@@ -10,13 +10,14 @@ import (
 
 // Config holds all configuration for our application
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Logger   LoggerConfig
-	Doku     DokuConfig
-	Mayar    MayarConfig
-	JWT      JWTConfig
-	CORS     CORSConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Logger    LoggerConfig
+	Doku      DokuConfig
+	Mayar     MayarConfig
+	JWT       JWTConfig
+	CORS      CORSConfig
+	Scheduler SchedulerConfig
 }
 
 // ServerConfig holds server configuration
@@ -64,6 +65,11 @@ type CORSConfig struct {
 	AllowedOrigins string
 }
 
+// SchedulerConfig holds scheduler configuration
+type SchedulerConfig struct {
+	BillingCronExpression string
+}
+
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	// Load .env file if it exists
@@ -103,6 +109,9 @@ func Load() (*Config, error) {
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"),
+		},
+		Scheduler: SchedulerConfig{
+			BillingCronExpression: getEnv("BILLING_CRON_EXPRESSION", "0 0 0 1 * *"),
 		},
 	}
 
